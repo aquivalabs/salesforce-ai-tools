@@ -1,0 +1,11 @@
+.DS_Store
+node_modules/
+.sf/
+.sfdx/
+*.bak
+
+# Local env files (contain org-specific IDs)
+**/.env
+
+# Scratch org auth cache
+/tmp/sfdx-auth-*.url

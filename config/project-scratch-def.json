@@ -1,0 +1,10 @@
+{
+  "orgName": "My Project Dev",
+  "edition": "Developer",
+  "features": ["EnableSetPasswordInApi"],
+  "settings": {
+    "languageSettings": {
+      "userLanguage": "en_US"
+    }
+  }
+}
