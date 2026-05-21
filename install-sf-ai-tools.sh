@@ -18,4 +18,7 @@ for rules_file in "$SCRIPT_DIR/.claude/rules/salesforce/"*.md; do
   echo "Linked rules: $(basename "$rules_file")"
 done
 
-echo "Done — skills and rules available globally in Claude Code."
+ln -sfn "$SCRIPT_DIR/.claude/settings.json" "$CLAUDE_DIR/settings.json"
+echo "Linked settings.json"
+
+echo "Done — skills, rules, and settings available globally in Claude Code."
