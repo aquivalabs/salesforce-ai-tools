@@ -207,11 +207,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ISSUE_NUMBER: ${{ steps.context.outputs.scratch_key }}
-          WORKFLOW_NAME: sf-ticket-to-pr
-          MODEL: claude-sonnet-4-6
           EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
-          CYCLE_ID: ${{ github.run_id }}
-          TRIGGER: ${{ github.event_name }}
         run: .sf-ai-tools/.github/scripts/report-ai-cost.sh || echo "::warning::cost report failed"
 
       # Mark the issue/PR with `ai-involved` so humans see at a glance that
@@ -345,11 +341,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ISSUE_NUMBER: ${{ needs.triage.outputs.scratch_key }}
-          WORKFLOW_NAME: sf-ticket-to-pr
-          MODEL: claude-sonnet-4-6
           EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
-          CYCLE_ID: ${{ github.run_id }}
-          TRIGGER: ${{ github.event_name }}
         run: .sf-ai-tools/.github/scripts/report-ai-cost.sh || echo "::warning::cost report failed"
 
       - name: Notify on execute failure
