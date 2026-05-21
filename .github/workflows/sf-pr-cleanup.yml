@@ -5,6 +5,11 @@ run-name: "Cleanup PR #${{ github.event.pull_request.number }}"
 
 on:
   workflow_call:
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: Issue number whose scratch org to delete
+        required: true
   pull_request:
     types: [closed]
   issues:
