@@ -1,10 +1,14 @@
 {
   "orgName": "My Project Dev",
   "edition": "Developer",
+  "hasSampleData": true,
   "features": ["EnableSetPasswordInApi"],
   "settings": {
     "languageSettings": {
       "userLanguage": "en_US"
+    },
+    "aiSettings": {
+      "enableSetupAssistant": true
     }
   }
 }

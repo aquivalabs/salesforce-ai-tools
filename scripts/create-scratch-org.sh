@@ -33,6 +33,9 @@ execute sf org create scratch --alias $SCRATCH_ORG_ALIAS --set-default \
 echo "Making org user English"
 sf data update record --sobject User --where "Name='User User'" --values "Languagelocalekey=en_US"
 
+echo "Enabling Agentforce"
+sf org assign permset --name EinsteinGPTPromptTemplateManager --name AgentPlatformBuilder
+
 echo "Deploying force-app"
 execute sf project deploy start --source-dir force-app --concise --ignore-conflicts
 
