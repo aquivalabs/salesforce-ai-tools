@@ -120,11 +120,18 @@ jobs:
 
             You were summoned by an @butler mention on ${{ steps.context.outputs.kind }} #${{ steps.context.outputs.number }} of ${{ github.repository }}.
 
-            Execute ONLY the triage decision — read the full thread (use
-            `gh issue view ${{ steps.context.outputs.number }} --repo ${{ github.repository }} --comments`
-            for issues, or `gh pr view ${{ steps.context.outputs.number }} --repo ${{ github.repository }} --comments`
-            for PRs), then pick one of: take it, ask for clarification, propose
-            a split, or refuse.
+            **Before anything else, run this command and read the full output:**
+
+                gh ${{ steps.context.outputs.kind == 'pr' && 'pr' || 'issue' }} view ${{ steps.context.outputs.number }} --repo ${{ github.repository }} --comments
+
+            The @butler mention that triggered this run is likely a short comment
+            like "@butler" or "@butler retry" — that is NOT the task. The actual
+            task is in the **issue body** (the first block of text in the output
+            above, before any comments). Do not confuse a triggering comment with
+            the issue description.
+
+            Execute ONLY the triage decision — based on what you read above, pick
+            one of: take it, ask for clarification, propose a split, or refuse.
 
             **You MUST post your decision as a real GitHub comment by running
             the shell command below.** Emitting the comment text in your
