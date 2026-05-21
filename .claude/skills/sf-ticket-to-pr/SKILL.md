@@ -100,6 +100,8 @@ assigned to the appropriate app/profile. A non-activated page is invisible
 to users, so shipping one is the same as shipping nothing. Verification
 without activation is impossible because the new page is never rendered.
 
+If a deploy fails with invalid metadata format errors, WebSearch before retrying — don't guess.
+
 
     <!-- butler:proceed -->
 
@@ -165,7 +167,7 @@ and update or add the test class.
 
 Redeploy the changed file (the script already deployed everything else):
 
-    sf project deploy start --source-dir force-app/main/default/classes/<File>.cls --concise
+    sf project deploy start --source-dir <changed-file-path> --concise
 
 If the consuming repo's `CLAUDE.md` describes a namespace strip-deploy-restore
 dance or other pre-deploy massaging, follow that instead.
