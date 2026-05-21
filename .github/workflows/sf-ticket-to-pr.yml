@@ -18,6 +18,7 @@ run-name: "Ticket #${{ github.event.issue.number || github.event.pull_request.nu
 # opens a PR. It's purely informational — humans can filter the PR list by it.
 
 on:
+  workflow_call:
   issues:
     types: [opened, edited]
   issue_comment:
@@ -71,6 +72,12 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Checkout salesforce-ai-tools (skills + scripts)
+        uses: actions/checkout@v6
+        with:
+          repository: aquivalabs/salesforce-ai-tools
+          path: .sf-ai-tools
+
       # Normalize the event into a few simple variables: is this an issue or a
       # PR? what's the number? if it's a PR, what's the head branch? The agent
       # and the execute job both want this without re-deriving it from each
@@ -116,7 +123,7 @@ jobs:
         id: claude
         with:
           prompt: |
-            Read .claude/skills/sf-ticket-to-pr/SKILL.md for instructions.
+            Read .sf-ai-tools/.claude/skills/sf-ticket-to-pr/SKILL.md for instructions.
 
             You were summoned by an @butler mention on ${{ steps.context.outputs.kind }} #${{ steps.context.outputs.number }} of ${{ github.repository }}.
 
@@ -202,7 +209,7 @@ jobs:
           EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
           CYCLE_ID: ${{ github.run_id }}
           TRIGGER: ${{ github.event_name }}
-        run: ./.github/scripts/report-ai-cost.sh || echo "::warning::cost report failed"
+        run: .sf-ai-tools/.github/scripts/report-ai-cost.sh || echo "::warning::cost report failed"
 
       # Mark the issue/PR with `ai-involved` so humans see at a glance that
       # Butler touched this thread. Purely visual — never gates anything.
@@ -264,6 +271,12 @@ jobs:
           fetch-depth: 0
           ref: ${{ needs.triage.outputs.kind == 'pr' && needs.triage.outputs.pr_branch || '' }}
 
+      - name: Checkout salesforce-ai-tools (skills + scripts)
+        uses: actions/checkout@v6
+        with:
+          repository: aquivalabs/salesforce-ai-tools
+          path: .sf-ai-tools
+
       - name: Configure git
         run: |
           git config user.name "github-actions[bot]"
@@ -302,7 +315,7 @@ jobs:
         id: claude
         with:
           prompt: |
-            Read .claude/skills/sf-ticket-to-pr/SKILL.md for instructions.
+            Read .sf-ai-tools/.claude/skills/sf-ticket-to-pr/SKILL.md for instructions.
 
             You were summoned by an @butler mention on ${{ env.KIND }} #${{ env.NUMBER }}. Triage has already decided you are taking the work in this run; the proceed marker is set. Skip the triage decision and go straight to coding, verifying, and shipping.
 
@@ -315,7 +328,7 @@ jobs:
             Read the full thread for context (`gh ${{ env.KIND == 'pr' && 'pr' || 'issue' }} view ${{ env.NUMBER }} --repo ${{ github.repository }} --comments`).
 
             Tone for human-facing text: strong opinions, no "Great question!" or "I'd be happy to help!", brevity mandatory, no emojis, call out anything unclear or risky.
-          claude_args: "--max-turns 90 --model claude-sonnet-4-6 --mcp-config .claude/mcp.json --permission-mode bypassPermissions"
+          claude_args: "--max-turns 90 --model claude-sonnet-4-6 --mcp-config .sf-ai-tools/.claude/mcp.json --permission-mode bypassPermissions"
           show_full_output: "true"
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -331,7 +344,7 @@ jobs:
           EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
           CYCLE_ID: ${{ github.run_id }}
           TRIGGER: ${{ github.event_name }}
-        run: ./.github/scripts/report-ai-cost.sh || echo "::warning::cost report failed"
+        run: .sf-ai-tools/.github/scripts/report-ai-cost.sh || echo "::warning::cost report failed"
 
       - name: Notify on execute failure
         if: failure()

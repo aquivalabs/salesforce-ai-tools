@@ -4,6 +4,7 @@ run-name: "Cleanup PR #${{ github.event.pull_request.number }}"
 # the DevHub and drops the cached SFDX auth URL so the alias is reusable.
 
 on:
+  workflow_call:
   pull_request:
     types: [closed]
 
