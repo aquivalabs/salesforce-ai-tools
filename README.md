@@ -53,7 +53,7 @@ jobs:
     secrets: inherit
 ```
 
-The workflow checks out this repo at runtime, making all skills available to Claude.
+The `on:` block in your wrapper is the event listener — it must stay there. The `uses:` line delegates all the actual logic to this repo, which checks itself out at runtime so Claude has access to all skills.
 
 ### Step 2 — Add the PR cleanup workflow
 
@@ -90,22 +90,25 @@ Mention `@butler` in any issue or pull request comment. The agent reads the full
 @butler please add a validation rule to Account that requires Phone when BillingCountry is "US"
 ```
 
-## Using the Claude Code skills locally
+## Skills — how they reach Claude
 
-The skills also work in your local Claude Code session if you copy them into your project's [.claude/skills/](.claude/skills/) directory:
+**In CI:** No setup needed. The reusable workflow checks out this repo into `.sf-ai-tools/` before every run, so all skills are automatically available to Claude.
+
+**Locally:** Clone this repo once and run [install.sh](install.sh). It symlinks each skill into `~/.claude/skills/` so they're available in every project on your machine — no per-project copying needed.
 
 ```bash
-# From your Salesforce project root
-git clone https://github.com/aquivalabs/salesforce-ai-tools /tmp/sf-ai-tools
-cp -r /tmp/sf-ai-tools/.claude/skills/* .claude/skills/
+git clone https://github.com/aquivalabs/salesforce-ai-tools ~/salesforce-ai-tools
+~/salesforce-ai-tools/install.sh
 ```
 
-Then invoke them with a slash command in Claude Code:
+Then invoke any skill with a slash command in Claude Code:
 
 ```
 /sf-code-analyzer
 /agentforce-deploy
 ```
+
+Pulling the latest version of this repo is all you need to update — the symlinks always point to the current files.
 
 ## Local development
 
