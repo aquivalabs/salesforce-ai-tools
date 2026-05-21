@@ -51,12 +51,20 @@ jobs:
       - name: Authenticate DevHub
         run: sf org login sfdx-url --set-default-dev-hub --sfdx-url-stdin <<< "${{ secrets.SFDX_AUTH_URL }}"
 
+      - name: Restore scratch org auth from cache
+        uses: actions/cache@v5
+        with:
+          path: /tmp/sfdx-auth-pr-${{ steps.pr.outputs.issue_number }}.url
+          key: scratch-auth-pr-${{ steps.pr.outputs.issue_number }}
+
       - name: Delete scratch org
         env:
           ALIAS: pr-${{ steps.pr.outputs.issue_number }}
+          AUTH_FILE: /tmp/sfdx-auth-pr-${{ steps.pr.outputs.issue_number }}.url
         run: |
-          # Best-effort: org may already be expired or never created (e.g. PR closed before
-          # the ticket-to-pr workflow finished provisioning). Don't fail the cleanup on that.
+          if [ -f "$AUTH_FILE" ]; then
+            sf org login sfdx-url --alias "$ALIAS" --sfdx-url-stdin < "$AUTH_FILE" || true
+          fi
           sf org delete scratch --no-prompt --target-org "$ALIAS" || echo "::notice::No scratch org $ALIAS to delete"
 
       - name: Drop cached auth URL
