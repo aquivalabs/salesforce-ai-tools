@@ -22,4 +22,7 @@ done
 ln -sfn "$REPO_DIR/.claude/settings.json" "$CLAUDE_DIR/settings.json"
 echo "Linked settings.json"
 
+ln -sfn "$REPO_DIR/.claude/mcp.json" "$CLAUDE_DIR/mcp.json"
+echo "Linked mcp.json"
+
 echo "Done — skills, rules, and settings available globally in Claude Code."
