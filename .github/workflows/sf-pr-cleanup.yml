@@ -31,7 +31,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if [ -n "${{ github.event.issue.number }}" ]; then
+          if [ -n "${{ github.event.inputs.issue_number }}" ]; then
+            echo "issue_number=${{ github.event.inputs.issue_number }}" >> $GITHUB_OUTPUT
+          elif [ -n "${{ github.event.issue.number }}" ]; then
             echo "issue_number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
           else
             PR_NUMBER="${{ github.event.pull_request.number }}"
