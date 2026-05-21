@@ -4,43 +4,48 @@ Reusable GitHub Actions workflows and Claude Code skills for AI-assisted Salesfo
 
 ## Contents
 
-- [What's here](#whats-here)
-- [How it works](#how-it-works)
-- [Features](#features)
+- [Skills](#skills)
+- [Workflows and scripts](#workflows-and-scripts)
+- [How the pipeline works](#how-the-pipeline-works)
 - [Using in your repo](#using-in-your-repo)
 - [Skills locally](#skills-locally)
 
 ---
 
-## What's here
+## Skills
 
-**Skills** ([.claude/skills/](.claude/skills/)) — Specialized behaviors Claude Code loads at runtime.
+Specialized behaviors Claude Code loads at runtime. In CI the reusable workflow checks out this repo automatically — no setup needed. Locally, run [scripts/install-sf-ai-tools.sh](scripts/install-sf-ai-tools.sh) once to symlink them into `~/.claude/`.
 
 | Skill | What it does |
-|---|---|
-| [sf-ticket-to-pr](.claude/skills/sf-ticket-to-pr/SKILL.md) | Reads a GitHub issue or PR thread and acts on it — writes code, opens a PR, asks for clarification, or refuses |
-| [agentforce](.claude/skills/agentforce/SKILL.md) | Tests and deploys Agentforce agents and prompt templates |
-| [agentforce-deploy](.claude/skills/agentforce-deploy/SKILL.md) | Handles the manual fixups Salesforce CLI doesn't cover when deploying Agentforce metadata |
-| [playwright-sf](.claude/skills/playwright-sf/SKILL.md) | Drives a Salesforce Lightning org headlessly to reproduce bugs and verify UI changes |
-| [sf-code-analyzer](.claude/skills/sf-code-analyzer/SKILL.md) | Runs Salesforce Code Analyzer on changed Apex, Flow, or metadata files |
-
-**Workflows** ([.github/workflows/](.github/workflows/)) — Reusable via the `uses:` keyword in any repo's workflow file.
-
-| Workflow | What it does |
-|---|---|
-| [sf-ticket-to-pr.yml](.github/workflows/sf-ticket-to-pr.yml) | Mention-driven pipeline: fires on `@butler` mentions, triages, then executes |
-| [sf-pr-cleanup.yml](.github/workflows/sf-pr-cleanup.yml) | Deletes the per-PR scratch org when a PR closes |
-
-**Scripts** ([scripts/](scripts/)) — Shell utilities used by the workflows.
-
-| Script | What it does |
-|---|---|
-| [create-scratch-org.sh](scripts/create-scratch-org.sh) | Provisions or restores a scratch org from cache |
-| [report-ai-cost.sh](scripts/report-ai-cost.sh) | Appends cost/token footers to PRs and rolls up totals on the originating issue |
+| ----- | ------------ |
+| **[sf-ticket-to-pr](.claude/skills/sf-ticket-to-pr/SKILL.md)** | The core pipeline skill. Reads a GitHub issue or PR thread, decides whether to take it, clarify, split into sub-stories, or refuse — then codes, deploys to a scratch org, runs tests and PMD, captures Playwright screenshots, opens a PR, and posts an auto-login org URL. Every follow-up `@butler` on the PR lands a new commit on the same cached org with no re-provisioning. |
+| **[agentforce](.claude/skills/agentforce/SKILL.md)** | Tests and deploys Agentforce agents and prompt templates — multi-turn demo story, prompt template regression, Testing Center migration, and the manual fixups Salesforce CLI doesn't handle when iterating on Agentforce metadata. |
+| **[agentforce-deploy](.claude/skills/agentforce-deploy/SKILL.md)** | Encodes the manual fixups Salesforce CLI does not handle when deploying Agentforce metadata — schema.json scaffolding for genAiFunctions, prompt-template `versionIdentifier` bumps, schema-only-edit detection nudge, planner bundle topic refresh, and the deactivate/deploy/reactivate flow when an active agent blocks a deploy. |
+| **[playwright-sf](.claude/skills/playwright-sf/SKILL.md)** | Drives a Salesforce Lightning org headlessly via the Playwright MCP server to reproduce bugs, verify UI changes, and capture screenshot evidence. Invoked automatically by sf-ticket-to-pr for user-visible changes. |
+| **[sf-code-analyzer](.claude/skills/sf-code-analyzer/SKILL.md)** | Runs Salesforce Code Analyzer on changed Apex, Flow, or metadata files with smart rule selection. Detects managed packages and applies AppExchange security rules when relevant, otherwise runs opinionated clean-code rules. Invoked automatically by sf-ticket-to-pr after every code change. |
+| **[markdown-web](.claude/skills/markdown-web/SKILL.md)** | Fetches JS-rendered webpages via headless Chromium and returns clean markdown. Cracks shadow DOM and cookie-consent walls that defeat `WebFetch` — especially useful for [help.salesforce.com](https://help.salesforce.com) and [developer.salesforce.com](https://developer.salesforce.com) docs. Per-domain rules live in [sites.json](.claude/skills/markdown-web/sites.json). |
 
 ---
 
-## How it works
+## Workflows and scripts
+
+**Workflows** ([.github/workflows/](.github/workflows/)) — Reusable via the `uses:` keyword.
+
+| Workflow | What it does |
+| -------- | ------------ |
+| **[sf-ticket-to-pr.yml](.github/workflows/sf-ticket-to-pr.yml)** | Two-job pipeline: triage (Claude only, no infra) then execute (scratch org, deploy, test, PR). Triggered by `@butler` mentions anywhere in an issue or PR thread. |
+| **[sf-pr-cleanup.yml](.github/workflows/sf-pr-cleanup.yml)** | Fires on PR close — deletes the cached scratch org and auth entry. Best-effort; logs a notice if either is already gone. |
+
+**Scripts** ([scripts/](scripts/))
+
+| Script | What it does |
+| ------ | ------------ |
+| **[create-scratch-org.sh](scripts/create-scratch-org.sh)** | Provisions a scratch org on first run, restores it from GitHub Actions cache on every follow-up. Falls through to a full provision if the org has expired or the cache was evicted. Same script for CI (`HEADLESS=true`) and local dev. |
+| **[report-ai-cost.sh](scripts/report-ai-cost.sh)** | Reads the SDK execution file, extracts token counts and cost, appends a footer to the PR comment, and updates a sticky cost-rollup on the originating issue using hidden HTML markers so totals survive comment edits. |
+
+---
+
+## How the pipeline works
 
 ```mermaid
 sequenceDiagram
@@ -67,41 +72,47 @@ sequenceDiagram
 
 `@butler` works in issue bodies, issue comments, PR reviews, and PR review replies.
 
-### Triage
+### Triage job
 
-The first job runs only Claude — no Salesforce CLI, no scratch org. A clarification or refusal costs cents, not a provisioning cycle. Claude reads the full thread and picks one outcome:
+The first job runs only Claude — no Salesforce CLI, no scratch org. A clarification or refusal costs cents, not a provisioning cycle. Claude reads the full thread against [SKILL.md](.claude/skills/sf-ticket-to-pr/SKILL.md) and picks one outcome:
 
-- **Take it** — posts a plan, ends the comment with a hidden `<!-- butler:proceed -->` marker. The execute job greps for it.
-- **Clarify** — asks one or two specific questions. Stops.
-- **Split** — proposes sub-stories. Stops. A human opens them and mentions butler on each.
-- **Refuse** — one sentence, no marker. Stops.
+- **Take it** — posts a plan, ends the comment with a hidden `<!-- butler:proceed -->` marker. The execute job greps for it and starts.
+- **Clarify** — asks one or two specific questions. Stops. Mention `@butler` again once you've answered.
+- **Split** — proposes sub-stories. Stops. Open them as issues and mention `@butler` on each.
+- **Refuse** — one sentence, no marker. For out-of-scope requests or entries in a repo-specific refuse list in `CLAUDE.md`.
 
-### Execute
+### Execute job
 
-The scratch org is provisioned once on the first run for an issue. Its SFDX auth URL is cached under `scratch-auth-pr-<issue-number>` — keyed on the issue, not the PR, so the same org is reused across the issue run and every PR follow-up. [create-scratch-org.sh](scripts/create-scratch-org.sh) detects the cached file on subsequent runs, re-logs in, validates the org, and exits without reprovisioning. If the org has expired or the cache was evicted, the script falls through to a full provision. A `concurrency:` group keyed on the issue number serializes concurrent runs against the same org.
+The scratch org is provisioned once per issue. Its SFDX auth URL is cached under `scratch-auth-pr-<issue-number>` — keyed on the issue, not the PR, so the same org survives across the initial run and every follow-up commit. [create-scratch-org.sh](scripts/create-scratch-org.sh) re-logs into the cached org in seconds; it falls back to a full provision only if the org expired (30-day limit) or the cache was evicted. A `concurrency:` group on the issue number prevents two runs from hitting the same org simultaneously.
 
-Claude runs in `bypassPermissions` mode — the `author_association` gate on the workflow handles access control. It has access to the Playwright MCP server via [.claude/mcp.json](.claude/mcp.json) for UI verification of user-visible changes.
+Claude runs in `bypassPermissions` mode — the `author_association` gate on the workflow already handles access control. After deploying and running Apex tests, it calls `sf-code-analyzer` for PMD and, for user-visible changes, drives the org via Playwright to capture screenshots that land inline in the PR body.
 
 ### Cost reporting
 
-[report-ai-cost.sh](scripts/report-ai-cost.sh) extracts cost and tokens from the SDK execution file, appends a footer to the PR or comment, and updates a sticky rollup on the originating issue. Each run is stored as a hidden HTML marker so totals survive comment edits. Both triage and execute call this script.
+Both jobs call [report-ai-cost.sh](scripts/report-ai-cost.sh) at the end. The script appends a `> 🤖 Cost: $X.XX` footer to the PR or comment and upserts a sticky rollup table on the originating issue. Each run is stored as a hidden `<!-- butler:cost:... -->` marker so the totals accumulate correctly even if comments are edited.
 
-### Cleanup
+### What you get on the PR
 
-[sf-pr-cleanup.yml](.github/workflows/sf-pr-cleanup.yml) fires on PR close and deletes the scratch org and cache entry. Best-effort — if either is already gone it logs a notice and continues.
+Every PR opened by butler includes:
+
+- A summary of what was changed and why
+- A one-click auto-login URL to the scratch org (`sf org open` style)
+- Inline Playwright screenshots for any UI change
+- PMD and Apex test results
+- A cost footer
 
 ---
 
 ## Features
 
 | | |
-|---|---|
+| - | - |
 | 💬 **No state machine** | Every fire reads the full thread fresh. No labels carry state between runs. If butler refused last time, mention it again with more context. |
-| 🛑 **Triage before infra** | The triage job runs only Claude — no scratch org, no SF CLI. Clarification, split, and refusal outcomes cost cents each, not a provisioning cycle. |
+| 🛑 **Triage before infra** | The triage job is Claude-only. Clarification, split, and refusal outcomes cost cents each — no provisioning cycle wasted on ambiguous requests. |
 | 🏷️ **Persistent scratch org** | The org is provisioned once and cached for the entire PR lifetime. Follow-up runs restore it in seconds. |
-| 🔗 **Self-evidencing PRs** | Every PR body and reviewer reply includes a clickable auto-login URL to the scratch org plus inline Playwright screenshots for UI changes. |
+| 🔗 **Self-evidencing PRs** | Every PR body includes a clickable auto-login URL plus inline Playwright screenshots for UI changes. |
 | 💰 **Cost transparency** | Both triage and execute report cost. The originating issue carries a sticky rollup, one row per `@butler` cycle. |
-| 🤖 **No GitHub App needed** | Commits and PRs go out as `github-actions[bot]` via the built-in `GITHUB_TOKEN`. Bot-authored events don't retrigger the workflow, so the agent can't summon itself. |
+| 🤖 **No GitHub App needed** | Commits and PRs go out as `github-actions[bot]` via the built-in `GITHUB_TOKEN`. Bot-authored events don't retrigger the workflow. |
 | ♻️ **One script for dev and CI** | [create-scratch-org.sh](scripts/create-scratch-org.sh) is what developers run locally too — CI just sets `HEADLESS=true`. |
 
 ---
@@ -110,7 +121,7 @@ Claude runs in `bypassPermissions` mode — the `author_association` gate on the
 
 Prereqs: GitHub org admin, Salesforce DevHub, Anthropic API key.
 
-**Step 1 — Reference the reusable workflows**
+### Step 1 — Reference the reusable workflows
 
 Create `.github/workflows/sf-ticket-to-pr.yml` in your repo:
 
@@ -150,36 +161,38 @@ jobs:
 
 The `on:` block stays in your repo. The `uses:` line delegates all logic here — this repo checks itself out at runtime so Claude has access to all skills automatically.
 
-**Step 2 — Set repo secrets** (Settings → Secrets and variables → Actions)
+### Step 2 — Set repo secrets
+
+Settings → Secrets and variables → Actions:
 
 | Secret | Value |
-|---|---|
+| ------ | ----- |
 | `SFDX_AUTH_URL` | `sf org display --verbose --target-org <devhub> --json \| jq -r '.result.sfdxAuthUrl'` |
 | `ANTHROPIC_API_KEY` | Your Anthropic API key. Or use `CLAUDE_CODE_OAUTH_TOKEN` to bill a Max subscription instead (`claude setup-token`). |
 
 The built-in `GITHUB_TOKEN` covers everything else — no PAT or GitHub App needed.
 
-**Step 3 — Create the label**
+### Step 3 — Create the label
 
 ```bash
 gh label create ai-involved --description "Butler (AI) was involved in this issue or PR" --color FBCA04
 ```
 
-**Step 4 — Trigger it**
+### Step 4 — Trigger it
 
-Mention `@butler` in any issue or pull request comment:
+Mention `@butler` in any issue or PR comment:
 
 ```
 @butler please add a validation rule to Account that requires Phone when BillingCountry is "US"
 ```
 
-Non-Salesforce repo? Replace the deploy/test commands in [.claude/skills/sf-ticket-to-pr/SKILL.md](.claude/skills/sf-ticket-to-pr/SKILL.md) with your toolchain's equivalents. Want a different trigger word? Search-and-replace `@butler` in [sf-ticket-to-pr.yml](.github/workflows/sf-ticket-to-pr.yml) and [SKILL.md](.claude/skills/sf-ticket-to-pr/SKILL.md).
+Non-Salesforce repo? Replace the deploy/test commands in [SKILL.md](.claude/skills/sf-ticket-to-pr/SKILL.md) with your toolchain's equivalents. Different trigger word? Search-and-replace `@butler` in [sf-ticket-to-pr.yml](.github/workflows/sf-ticket-to-pr.yml) and [SKILL.md](.claude/skills/sf-ticket-to-pr/SKILL.md).
 
 ---
 
 ## Skills locally
 
-Clone this repo once and run [scripts/install-sf-ai-tools.sh](scripts/install-sf-ai-tools.sh). It symlinks skills, rules, settings, and the MCP config into `~/.claude/` so they're available in every project on your machine — no per-project copying needed.
+Clone this repo once and run [scripts/install-sf-ai-tools.sh](scripts/install-sf-ai-tools.sh). It symlinks skills, rules, and settings into `~/.claude/` so they're available in every project on your machine.
 
 ```bash
 git clone https://github.com/aquivalabs/salesforce-ai-tools ~/salesforce-ai-tools
