@@ -94,11 +94,11 @@ Mention `@butler` in any issue or pull request comment. The agent reads the full
 
 **In CI:** No setup needed. The reusable workflow checks out this repo into `.sf-ai-tools/` before every run, so all skills are automatically available to Claude.
 
-**Locally:** Clone this repo once and run [install.sh](install.sh). It symlinks each skill into `~/.claude/skills/` so they're available in every project on your machine — no per-project copying needed.
+**Locally:** Clone this repo once and run [scripts/install-skills.sh](scripts/install-skills.sh). It symlinks each skill into `~/.claude/skills/` so they're available in every project on your machine — no per-project copying needed.
 
 ```bash
 git clone https://github.com/aquivalabs/salesforce-ai-tools ~/salesforce-ai-tools
-~/salesforce-ai-tools/install.sh
+~/salesforce-ai-tools/scripts/install-skills.sh
 ```
 
 Then invoke any skill with a slash command in Claude Code:
