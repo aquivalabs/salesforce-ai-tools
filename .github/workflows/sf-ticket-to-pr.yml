@@ -79,7 +79,7 @@ jobs:
           path: .sf-ai-tools
 
       - name: Install skills and rules globally
-        run: bash .sf-ai-tools/install.sh
+        run: bash .sf-ai-tools/install-sf-ai-tools.sh
 
       # Normalize the event into a few simple variables: is this an issue or a
       # PR? what's the number? if it's a PR, what's the head branch? The agent
@@ -281,7 +281,7 @@ jobs:
           path: .sf-ai-tools
 
       - name: Install skills and rules globally
-        run: bash .sf-ai-tools/install.sh
+        run: bash .sf-ai-tools/install-sf-ai-tools.sh
 
       - name: Configure git
         run: |
