@@ -46,6 +46,8 @@ in the prompt. Read everything — the body and every comment, in order. The
 latest human signal is authoritative; if a maintainer's most recent comment
 contradicts an earlier one of yours, follow the maintainer.
 
+**An empty issue body is not a reason to stop.** The issue title is part of the request. If the body is blank but the title is descriptive (e.g. "Show account health score on the Account record page"), treat the title as the full request and proceed. Only ask for clarification if the title itself is ambiguous.
+
 **Verify any prior bot promises before believing them.** Earlier bot
 comments may say "Done — PR #X" or "I'll attach to PR #Y" or "branch
 fix/issue-N has the change". Those statements were true at the time but
