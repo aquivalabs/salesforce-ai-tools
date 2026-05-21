@@ -1,14 +1,26 @@
 {
-  "orgName": "My Project Dev",
-  "edition": "Developer",
-  "hasSampleData": true,
-  "features": ["EnableSetPasswordInApi"],
+  "orgName": "salesforce-ai-tools_DEV",
+  "edition": "Partner Developer",
+  "hasSampleData": false,
+    "features": ["EnableSetPasswordInApi","Einstein1AIPlatform", "Chatbot"],
   "settings": {
-    "languageSettings": {
-      "userLanguage": "en_US"
+    "lightningExperienceSettings": {
+      "enableS1DesktopEnabled": true
     },
-    "aiSettings": {
-      "enableSetupAssistant": true
+    "mobileSettings": {
+      "enableS1EncryptedStoragePref2": false
+    },
+    "botSettings": {
+        "enableBots": true
+    },
+    "deploymentSettings": {
+      "doesSkipAsyncApexValidation": true
+    },
+    "einsteinGptSettings": {
+        "enableEinsteinGptPlatform": true
+    },
+    "agentPlatformSettings": {
+        "enableAgentPlatform": true
     }
   }
 }

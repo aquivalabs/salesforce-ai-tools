@@ -27,8 +27,7 @@ if [ -z "$DEV_HUB_URL" ]; then
 fi
 
 echo "Creating scratch org"
-execute sf org create scratch --alias $SCRATCH_ORG_ALIAS --set-default \
-  --definition-file ./config/project-scratch-def.json --duration-days 30
+execute sf org create scratch --alias $SCRATCH_ORG_ALIAS --set-default --definition-file ./config/project-scratch-def.json --duration-days 30
 
 echo "Making org user English"
 sf data update record --sobject User --where "Name='User User'" --values "Languagelocalekey=en_US"
@@ -37,7 +36,7 @@ echo "Enabling Agentforce"
 sf org assign permset --name EinsteinGPTPromptTemplateManager --name AgentPlatformBuilder
 
 echo "Deploying force-app"
-execute sf project deploy start --source-dir force-app --concise --ignore-conflicts
+sf project deploy start --source-dir force-app --concise --ignore-conflicts
 
 echo "Running Apex tests"
 sf apex run test --test-level RunLocalTests --wait 30 --result-format human
