@@ -155,7 +155,7 @@ node .claude/skills/agentforce/run.mjs agent-eval/prompt-regression.yaml --org m
 wait
 ```
 
-Flags: `--out <dir>` (default `/tmp/ae`), `--concurrency <N>` (default 4 — parallelism *within* a single spec), `--api-version <vXX.X>` (default `v66.0`).
+Flags: `--out <dir>` (default `/tmp/ae`), `--concurrency <N>` (default 4 — parallelism *within* a single spec), `--api-version <vXX.X>` (default `v65.0`).
 
 ### Output
 
