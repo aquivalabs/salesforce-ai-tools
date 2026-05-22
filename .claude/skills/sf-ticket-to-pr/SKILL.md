@@ -34,6 +34,55 @@ rules — refuse-list additions, namespace handling, repo-specific deploy
 commands — live in the consuming repo's `CLAUDE.md`. Read that file alongside
 this one and treat its rules as overrides where they conflict.
 
+## Local metadata knowledge
+
+This skill carries its own versioned Salesforce metadata knowledge under
+`knowledge/salesforce-metadata/`. Treat it as part of the pipeline, not as
+personal Claude memory.
+
+Before creating or editing Salesforce metadata, read
+`knowledge/salesforce-metadata/INDEX.md` and then read each routed file for the
+metadata type you will touch. The knowledge files are retrieval-oriented:
+symptoms, likely causes, fixes, and validation commands. Do not skim them as
+background documentation.
+
+When you discover a new metadata quirk through external research or live-org
+retrieval and validate the fix with a successful deploy, update the matching
+knowledge file in the same PR. Keep entries compact and operational.
+
+Every learning must include a `Trust` marker. Agents may only create entries as
+`AI-observed, not human-reviewed`. Only a human may change trust to
+`Human-reviewed`, `Superseded`, or `Rejected`.
+
+Use this shape for new learnings:
+
+```md
+### Error
+`exact error text`
+
+### Likely Cause
+One short explanation.
+
+### Fix
+Concrete metadata or source-path change.
+
+### Validation
+`command that proved it`
+
+### Source
+GitHub Actions run, live-org retrieve, official docs, GitHub example, or
+StackExchange interpretation.
+
+### Trust
+AI-observed, not human-reviewed
+
+### Confirmed
+YYYY-MM-DD
+```
+
+Also append one line to `knowledge/log.md` naming what was learned and where it
+came from.
+
 ## Step 1 — Read the thread, then decide
 
 Before touching code, read the conversation:
@@ -103,9 +152,6 @@ assigned to the appropriate app/profile. A non-activated page is invisible
 to users, so shipping one is the same as shipping nothing. Verification
 without activation is impossible because the new page is never rendered.
 
-If a deploy fails with invalid metadata format errors, WebSearch before retrying — don't guess.
-
-
     <!-- butler:proceed -->
 
 Then continue to Step 2.
@@ -166,6 +212,12 @@ Apex / coding rules live in the consuming repo's `CLAUDE.md` and any
 Read each file you will change in full before editing. Then write the change
 and update or add the test class.
 
+For brittle Salesforce metadata, prefer a retrieved working shape over invented
+XML. This applies especially to Quick Actions, Layouts, FlexiPages, LWC record
+actions, Flows, Permission Sets, and Agentforce metadata. If a similar artifact
+exists in the scratch org, retrieve it and adapt that shape before authoring from
+memory.
+
 ## Step 3 — Verify
 
 Redeploy the changed file (the script already deployed everything else):
@@ -174,6 +226,36 @@ Redeploy the changed file (the script already deployed everything else):
 
 If the consuming repo's `CLAUDE.md` describes a namespace strip-deploy-restore
 dance or other pre-deploy massaging, follow that instead.
+
+### Salesforce metadata deploy failure protocol
+
+On the first Salesforce metadata deploy failure, stop editing. Do not make a
+second guess.
+
+1. Capture the exact deploy error.
+2. Classify the failing metadata type from the source path and error text.
+3. Read `knowledge/salesforce-metadata/INDEX.md`.
+4. Read the routed knowledge file(s).
+5. Apply one targeted fix.
+6. Redeploy the smallest relevant source path.
+
+If local knowledge does not resolve the failure, first retrieve a similar
+working artifact from the scratch org when one can exist. If retrieval is not
+possible or still leaves the failure unresolved, research in this order:
+
+1. Official Salesforce metadata or source-format docs.
+2. Public GitHub examples using exact file suffixes, paths, XML elements, or
+   error text.
+3. Salesforce StackExchange only for interpreting error messages.
+
+Truth hierarchy: validated live-org retrieval beats official docs; official docs
+beat public examples; public examples beat forum interpretation. Public GitHub
+examples are for shape discovery only. Validate by deploy or retrieve before
+recording a rule.
+
+After a validated fix that required research or retrieval, update the matching
+knowledge file with the exact symptom, likely cause, fix, validation command,
+source, trust marker, and date.
 
 Run tests **in the foreground** with a Bash timeout long enough to cover the full Apex run (the CLI `--wait 30` is 30 minutes — the Bash timeout must match):
 

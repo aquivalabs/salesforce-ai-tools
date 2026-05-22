@@ -42,8 +42,12 @@
       "Bash(HEADLESS=true ./scripts/create-scratch-org.sh:*)",
       "Bash(sed:*)",
       "Bash(find:*)",
+      "WebSearch",
       "WebFetch(domain:agentforce.guide)",
-      "WebFetch(domain:developer.salesforce.com)"
+      "WebFetch(domain:developer.salesforce.com)",
+      "WebFetch(domain:help.salesforce.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:salesforce.stackexchange.com)"
     ],
     "additionalDirectories": [
       "/tmp"
