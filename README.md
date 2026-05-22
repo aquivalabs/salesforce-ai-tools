@@ -200,6 +200,8 @@ Settings → Secrets and variables → Actions:
 | `SFDX_AUTH_URL` | `sf org display --verbose --target-org <devhub> --json \| jq -r '.result.sfdxAuthUrl'` |
 | `ANTHROPIC_API_KEY` | Your Anthropic API key. Or use `CLAUDE_CODE_OAUTH_TOKEN` to bill a Max subscription instead (`claude setup-token`). |
 
+After the Salesforce CLI secret-redaction rollout on May 27, 2026, use `sf org auth show-sfdx-auth-url --target-org <devhub> --json | jq -r '.result.sfdxAuthUrl'` instead.
+
 The built-in `GITHUB_TOKEN` covers everything else — no PAT or GitHub App needed.
 
 #### 2.7.3 Create the label
