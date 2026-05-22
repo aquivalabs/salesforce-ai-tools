@@ -1,6 +1,14 @@
 #!/bin/bash
 source "$(dirname "$0")/config.sh"
 
+# Salesforce CLI secret redaction change:
+# https://www.salesforceben.com/urgent-salesforce-security-update-will-break-your-ci-cd-unless-you-act-now/
+#
+# After the May 27, 2026 CLI rollout, replace the auth-cache command near the
+# end of this file with:
+# sf org auth show-sfdx-auth-url --target-org "$SCRATCH_ORG_ALIAS" --json \
+#   | jq -r .result.sfdxAuthUrl > "$AUTH_CACHE_FILE"
+
 execute() {
   "$@" || exit
 }
