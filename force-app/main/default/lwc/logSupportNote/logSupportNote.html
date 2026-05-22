@@ -1,0 +1,26 @@
+<template>
+    <lightning-card title="Log Support Note">
+        <div class="slds-p-around_medium">
+            <lightning-textarea
+                label="Note"
+                value={noteText}
+                onchange={handleChange}
+                placeholder="Enter your support note…"
+            ></lightning-textarea>
+            <div class="slds-m-top_medium">
+                <lightning-button
+                    label="Save"
+                    variant="brand"
+                    onclick={handleSave}
+                    disabled={isSaving}
+                ></lightning-button>
+                <lightning-button
+                    label="Cancel"
+                    class="slds-m-left_small"
+                    onclick={handleCancel}
+                    disabled={isSaving}
+                ></lightning-button>
+            </div>
+        </div>
+    </lightning-card>
+</template>
