@@ -299,10 +299,18 @@ you touched.
 
 If your plan included a Playwright scenario (bug repro or UI verification),
 invoke the `playwright-sf` skill to run it now against the scratch org.
-Attach the resulting screenshots to the PR body in Step 4. A `UI-FAIL`
-result means the change is wrong — iterate. A `UI-INCONCLUSIVE` result
-means the assertion couldn't load reliably — note it in the PR but don't
-block on it.
+Use CLI/scripted Playwright first; use MCP only as a fallback discovery tool
+when selectors cannot be determined. Classic `npx playwright test` is for
+committed regression specs, not the default one-off PR evidence path. Attach
+the resulting screenshots to the PR body in Step 4. A `UI-FAIL` result means
+the change is wrong — iterate. A `UI-INCONCLUSIVE` result means the assertion
+couldn't load reliably — note it in the PR but don't block on it.
+
+If the plan required a video, do not treat a committed `.mp4` as proof by
+itself. The `playwright-sf` skill must extract frames from the final committed
+video and inspect them before the PR claims video verification. A video showing
+login, Access Denied, Setup, a blank page, or the wrong record is invalid even
+if the script logs passed assertions or SOQL confirms backend data.
 
 ## Step 4 — Ship
 
@@ -326,7 +334,8 @@ is throwaway, so the URL is safe to post in a public repo.
 
 If you also produced Playwright screenshots, embed them inline in the same
 markdown body — `playwright-sf` writes them under a path you can commit to
-the branch so GitHub renders them by relative URL. The pair "here's a
+the branch; use absolute raw GitHub URLs so GitHub renders them in PR bodies
+and comments. The pair "here's a
 screenshot of it working / here's the org if you want to see for yourself"
 is what makes the PR self-evidencing.
 
@@ -334,7 +343,7 @@ is what makes the PR self-evidencing.
 
 If a PR for the current branch does **not** yet exist, open one. The body must be
 specific enough that a reviewer can act without re-reading the issue — but no wall
-of text. Aim for ~5–10 lines: what changed, how to verify, the scratch org URL,
+of text. Aim for ~5–10 lines: what changed, what you verified, the scratch org URL,
 the issue link.
 
 **Always write the body to a file and pass `--body-file`.** Don't try to inline it
@@ -352,14 +361,15 @@ to recover from. Use this exact pattern:
 
     ## Verified
     <what you, the agent, verified — Apex test counts, Playwright screenshots
-    embedded inline by relative path, SOQL excerpts. Do NOT write instructions
+    embedded inline by raw GitHub URL, SOQL excerpts. Do NOT write instructions
     for a human to follow; the only human verification is clicking the scratch
     URL below if curious.>
 
-    Scratch org: <SCRATCH_URL>
+    Scratch org:
     EOF
-      # Substitute the scratch org URL after the heredoc so the URL itself is not subject to shell expansion.
-      sed -i "s|<SCRATCH_URL>|$SCRATCH_URL|" /tmp/pr-body.md
+      # Append volatile URLs outside the quoted heredoc. Do not use sed: Salesforce
+      # frontdoor URLs contain `&` and other characters that corrupt replacements.
+      printf '%s\n' "$SCRATCH_URL" >> /tmp/pr-body.md
       gh pr create \
         --title "fix: <short description>" \
         --body-file /tmp/pr-body.md \
@@ -369,8 +379,8 @@ to recover from. Use this exact pattern:
     fi
 
 The single-quoted `<<'EOF'` heredoc disables shell expansion inside the body, so
-backticks for code spans and `$variables` in narrative both stay literal. The one
-substitution we do need (`$SCRATCH_URL`) is done by `sed` after the file is on disk.
+backticks for code spans and `$variables` in narrative both stay literal. Append
+volatile URLs with `printf` after the heredoc; do not use `sed`.
 
 If the PR already exists, the push above updates it — no new PR. When you reply
 to feedback with `gh pr comment`, include `$SCRATCH_URL` in the comment body too.
