@@ -153,7 +153,7 @@ jobs:
         run: npm install --global @anthropic-ai/claude-code
 
       - name: Install salesforce-ai-tools plugin
-        run: .sf-ai-tools/scripts/install-sf-ai-tools.sh --scope local --source .sf-ai-tools
+        run: .sf-ai-tools/scripts/install-sf-ai-tools.sh --scope local --source ./.sf-ai-tools
 
       # Normalize the event into a few simple variables: is this an issue or a
       # PR? what's the number? if it's a PR, what's the head branch? The agent
@@ -334,7 +334,24 @@ jobs:
           NUMBER: ${{ steps.context.outputs.number }}
           KIND: ${{ steps.context.outputs.kind }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          EVENT_ISSUE_NUMBER: ${{ github.event.issue.number }}
+          EVENT_PR_NUMBER: ${{ github.event.pull_request.number }}
+          EVENT_ISSUE_PR_URL: ${{ github.event.issue.pull_request.url }}
         run: |
+          if [ -z "$NUMBER" ]; then
+            NUMBER="${EVENT_ISSUE_NUMBER:-${EVENT_PR_NUMBER:-}}"
+          fi
+          if [ -z "$KIND" ]; then
+            if [ -n "${EVENT_PR_NUMBER:-}" ] || [ -n "${EVENT_ISSUE_PR_URL:-}" ]; then
+              KIND=pr
+            else
+              KIND=issue
+            fi
+          fi
+          if [ -z "$NUMBER" ]; then
+            echo "::warning::Could not resolve issue/PR number for triage failure notification."
+            exit 0
+          fi
           if [ "$KIND" = "pr" ]; then
             gh pr comment "$NUMBER" --repo ${{ github.repository }} --body "Triage failed before I could decide. See the [run logs]($RUN_URL). Mention me again to retry."
           else
@@ -382,7 +399,7 @@ jobs:
         run: npm install --global @anthropic-ai/claude-code
 
       - name: Install salesforce-ai-tools plugin
-        run: .sf-ai-tools/scripts/install-sf-ai-tools.sh --scope local --source .sf-ai-tools
+        run: .sf-ai-tools/scripts/install-sf-ai-tools.sh --scope local --source ./.sf-ai-tools
 
       - name: Configure git
         run: |

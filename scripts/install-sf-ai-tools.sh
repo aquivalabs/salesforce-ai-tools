@@ -19,7 +19,7 @@ Usage: scripts/install-sf-ai-tools.sh [--scope user|project|local] [--source <re
 Examples:
   scripts/install-sf-ai-tools.sh
   scripts/install-sf-ai-tools.sh --scope project
-  scripts/install-sf-ai-tools.sh --scope local --source .sf-ai-tools
+  scripts/install-sf-ai-tools.sh --scope local --source ./.sf-ai-tools
 EOF
 }
 
