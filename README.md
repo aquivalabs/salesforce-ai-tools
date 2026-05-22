@@ -8,12 +8,12 @@ Reusable GitHub Actions workflows and a versioned Claude Code plugin for AI-assi
   - [1.1 Install locally](#11-install-locally)
   - [1.2 Install for a project](#12-install-for-a-project)
 - [2. GitHub pipelines](#2-github-pipelines)
-  - [2.1 Workflows and scripts](#21-workflows-and-scripts)
-  - [2.2 How the pipeline works](#22-how-the-pipeline-works)
-  - [2.3 Metadata failure memory](#23-metadata-failure-memory)
-  - [2.4 Cost reporting](#24-cost-reporting)
-  - [2.5 What you get on the PR](#25-what-you-get-on-the-pr)
-  - [2.6 Features](#26-features)
+  - [2.1 Features](#21-features)
+  - [2.2 What you get on the PR](#22-what-you-get-on-the-pr)
+  - [2.3 How the pipeline works](#23-how-the-pipeline-works)
+  - [2.4 Workflows and scripts](#24-workflows-and-scripts)
+  - [2.5 Metadata failure memory](#25-metadata-failure-memory)
+  - [2.6 Cost reporting](#26-cost-reporting)
   - [2.7 Using in your repo](#27-using-in-your-repo)
 
 ---
@@ -72,24 +72,30 @@ That records the plugin dependency in the project instead of asking every contri
 
 Reusable GitHub Actions workflows that drive the `@butler` agent end-to-end: triage, scratch-org provisioning, deploy, test, PR, and cleanup.
 
-### 2.1 Workflows and scripts
+### 2.1 Features
 
-**Workflows** ([.github/workflows/](.github/workflows/)) — Reusable via the `uses:` keyword.
+| | |
+| - | - |
+| **No state machine** | Every fire reads the full thread fresh. No labels carry state between runs. If butler refused last time, mention it again with more context. |
+| **Triage before infra** | The triage job is Claude-only. Clarification, split, and refusal outcomes cost cents each — no provisioning cycle wasted on ambiguous requests. |
+| **Persistent scratch org** | The org is provisioned once and cached for the entire PR lifetime. Follow-up runs restore it in seconds. |
+| **Self-evidencing PRs** | Every PR body includes a clickable auto-login URL plus Playwright UI evidence for user-visible changes. |
+| **Metadata failure memory** | Repeated Salesforce metadata mistakes are captured as compact local learnings with explicit human-review trust markers. |
+| **Cost transparency** | Both triage and execute report cost. The originating issue carries a sticky rollup, one row per `@butler` cycle. |
+| **No GitHub App needed** | Commits and PRs go out as `github-actions[bot]` via the built-in `GITHUB_TOKEN`. Bot-authored events don't retrigger the workflow. |
+| **One plugin for dev and CI** | Claude Code installs the same `salesforce-ai-tools` plugin locally and in GitHub Actions. |
 
-| Workflow | What it does |
-| -------- | ------------ |
-| **[sf-ticket-to-pr.yml](.github/workflows/sf-ticket-to-pr.yml)** | Gate + triage + execute pipeline: first checks the trigger and actor permission, then triages with Claude, then provisions a scratch org, deploys, tests, and opens a PR. Triggered by `@butler` mentions anywhere in an issue or PR thread. |
-| **[sf-pr-cleanup.yml](.github/workflows/sf-pr-cleanup.yml)** | Fires on PR close — deletes the cached scratch org and auth entry. Best-effort; logs a notice if either is already gone. |
+### 2.2 What you get on the PR
 
-**Scripts**
+Every PR opened by butler includes:
 
-| Script | What it does |
-| ------ | ------------ |
-| **[install-sf-ai-tools.sh](scripts/install-sf-ai-tools.sh)** | Installs the `salesforce-ai-tools` Claude plugin through the Aquiva Labs marketplace. Kept for downstream repos that already call the old installer name. |
-| **[create-scratch-org.sh](scripts/create-scratch-org.sh)** | Provisions a scratch org on first run, restores it from GitHub Actions cache on every follow-up. Falls through to a full provision if the org has expired or the cache was evicted. Same script for CI (`HEADLESS=true`) and local dev. |
-| **[report-ai-cost.sh](.github/scripts/report-ai-cost.sh)** | Reads the SDK execution file, extracts token counts and cost, appends a footer to the PR comment, and updates a sticky cost-rollup on the originating issue using hidden HTML markers so totals survive comment edits. |
+- A summary of what was changed and why
+- A one-click auto-login URL to the scratch org (`sf org open` style)
+- Inline Playwright screenshots for any UI change, and frame-inspected video evidence when an interactive flow needs it
+- PMD and Apex test results
+- A cost footer
 
-### 2.2 How the pipeline works
+### 2.3 How the pipeline works
 
 ```mermaid
 sequenceDiagram
@@ -116,7 +122,7 @@ sequenceDiagram
 
 `@butler` works in issue bodies, issue comments, PR reviews, and PR review replies.
 
-#### 2.2.1 Triage job
+#### 2.3.1 Triage job
 
 After the cheap permission gate, the triage job runs only Claude — no Salesforce CLI, no scratch org. A clarification or refusal costs cents, not a provisioning cycle. Claude reads the full thread against the `sf-ticket-to-pr` skill and picks one outcome:
 
@@ -125,13 +131,30 @@ After the cheap permission gate, the triage job runs only Claude — no Salesfor
 - **Split** — proposes sub-stories. Stops. Open them as issues and mention `@butler` on each.
 - **Refuse** — one sentence, no marker. For out-of-scope requests or entries in a repo-specific refuse list in `CLAUDE.md`.
 
-#### 2.2.2 Execute job
+#### 2.3.2 Execute job
 
 The scratch org is provisioned once per issue. Its SFDX auth URL is cached under `scratch-auth-pr-<issue-number>` — keyed on the issue, not the PR, so the same org survives across the initial run and every follow-up commit. `create-scratch-org.sh` re-logs into the cached org in seconds; it falls back to a full provision only if the org expired (30-day limit) or the cache was evicted. A `concurrency:` group on the issue number prevents two runs from hitting the same org simultaneously.
 
 Claude runs in `bypassPermissions` mode — the workflow gate already handles trigger and actor-permission checks. After deploying and running Apex tests, it calls `sf-code-analyzer` for PMD and, for user-visible changes, drives the org via Playwright CLI/scripts to capture UI evidence. Screenshots land inline in the PR body; interactive flows can include video only after the final MP4 has been frame-inspected for the expected Salesforce UI.
 
-### 2.3 Metadata failure memory
+### 2.4 Workflows and scripts
+
+**Workflows** ([.github/workflows/](.github/workflows/)) — Reusable via the `uses:` keyword.
+
+| Workflow | What it does |
+| -------- | ------------ |
+| **[sf-ticket-to-pr.yml](.github/workflows/sf-ticket-to-pr.yml)** | Gate + triage + execute pipeline: first checks the trigger and actor permission, then triages with Claude, then provisions a scratch org, deploys, tests, and opens a PR. Triggered by `@butler` mentions anywhere in an issue or PR thread. |
+| **[sf-pr-cleanup.yml](.github/workflows/sf-pr-cleanup.yml)** | Fires on PR close — deletes the cached scratch org and auth entry. Best-effort; logs a notice if either is already gone. |
+
+**Scripts**
+
+| Script | What it does |
+| ------ | ------------ |
+| **[install-sf-ai-tools.sh](scripts/install-sf-ai-tools.sh)** | Installs the `salesforce-ai-tools` Claude plugin through the Aquiva Labs marketplace. Kept for downstream repos that already call the old installer name. |
+| **[create-scratch-org.sh](scripts/create-scratch-org.sh)** | Provisions a scratch org on first run, restores it from GitHub Actions cache on every follow-up. Falls through to a full provision if the org has expired or the cache was evicted. Same script for CI (`HEADLESS=true`) and local dev. |
+| **[report-ai-cost.sh](.github/scripts/report-ai-cost.sh)** | Reads the SDK execution file, extracts token counts and cost, appends a footer to the PR comment, and updates a sticky cost-rollup on the originating issue using hidden HTML markers so totals survive comment edits. |
+
+### 2.5 Metadata failure memory
 
 `sf-ticket-to-pr` carries a small Karpathy-style local wiki under [plugins/salesforce-ai-tools/skills/sf-ticket-to-pr/knowledge/](plugins/salesforce-ai-tools/skills/sf-ticket-to-pr/knowledge/), inspired by Andrej Karpathy's [LLM Wiki gist](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f). It is not general documentation. It is retrieval-oriented pipeline memory for Salesforce metadata failures.
 
@@ -139,32 +162,9 @@ When a metadata deploy fails, Butler must stop editing, classify the failing met
 
 Validated new learnings are written back as compact symptom-to-fix entries. Agents may only mark entries as `AI-observed, not human-reviewed`; humans can later change trust to `Human-reviewed`, `Superseded`, or `Rejected`. To audit the wiki, search for `AI-observed, not human-reviewed` and review the linked source run or retrieve command.
 
-### 2.4 Cost reporting
+### 2.6 Cost reporting
 
 Both jobs call `report-ai-cost.sh` at the end. The script appends a `> 🤖 Cost: $X.XX` footer to the PR or comment and upserts a sticky rollup table on the originating issue. Each run is stored as a hidden `<!-- butler:cost:... -->` marker so the totals accumulate correctly even if comments are edited.
-
-### 2.5 What you get on the PR
-
-Every PR opened by butler includes:
-
-- A summary of what was changed and why
-- A one-click auto-login URL to the scratch org (`sf org open` style)
-- Inline Playwright screenshots for any UI change, and frame-inspected video evidence when an interactive flow needs it
-- PMD and Apex test results
-- A cost footer
-
-### 2.6 Features
-
-| | |
-| - | - |
-| 💬 **No state machine** | Every fire reads the full thread fresh. No labels carry state between runs. If butler refused last time, mention it again with more context. |
-| 🛑 **Triage before infra** | The triage job is Claude-only. Clarification, split, and refusal outcomes cost cents each — no provisioning cycle wasted on ambiguous requests. |
-| 🏷️ **Persistent scratch org** | The org is provisioned once and cached for the entire PR lifetime. Follow-up runs restore it in seconds. |
-| 🔗 **Self-evidencing PRs** | Every PR body includes a clickable auto-login URL plus Playwright UI evidence for user-visible changes. |
-| 🧠 **Metadata failure memory** | Repeated Salesforce metadata mistakes are captured as compact local learnings with explicit human-review trust markers. |
-| 💰 **Cost transparency** | Both triage and execute report cost. The originating issue carries a sticky rollup, one row per `@butler` cycle. |
-| 🤖 **No GitHub App needed** | Commits and PRs go out as `github-actions[bot]` via the built-in `GITHUB_TOKEN`. Bot-authored events don't retrigger the workflow. |
-| ♻️ **One plugin for dev and CI** | Claude Code installs the same `salesforce-ai-tools` plugin locally and in GitHub Actions. |
 
 ### 2.7 Using in your repo
 
