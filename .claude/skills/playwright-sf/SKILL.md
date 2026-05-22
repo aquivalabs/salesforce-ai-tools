@@ -1,15 +1,17 @@
 ---
 name: playwright-sf
-description: Drive a Salesforce Lightning org headlessly via the Playwright MCP server — reproduce bugs, verify UI changes, capture screenshot evidence. Invoked by sf-ticket-to-pr when a change is user-visible, or standalone.
+description: Verify Salesforce Lightning UI flows with Playwright CLI/scripts first, using Playwright MCP only for fallback selector discovery. Captures screenshot/video evidence for sf-ticket-to-pr or standalone use.
 ---
 
 # Playwright in a Salesforce Org
 
-Use the Playwright MCP server (declared in `.mcp.json`) to look into the org as a user would: reproduce a reported bug, verify a UI change after deploy, capture screenshots for a PR. Selectors against Lightning's Shadow DOM are brittle — drive the page through the accessibility tree instead.
+Default to Playwright CLI or small scripted Playwright runs for Salesforce UI verification. CLI/scripted runs keep browser state, traces, snapshots, and videos outside the model context, so they are cheaper and repeatable in GitHub Actions. Use Playwright MCP only as a fallback discovery tool when you cannot determine selectors from the scripted run output.
+
+Classic `npx playwright test` is for committed deterministic regression specs. Do not use it as the default one-off evidence path for a ticket unless you are adding or running a real regression spec.
 
 ## Tools you have
 
-The MCP server exposes (names as the agent sees them):
+Use Bash first for Playwright CLI or Node.js scripts. When `@playwright/cli` is available, prefer it for one-off inspection because page state and snapshots stay on disk instead of streaming into the model context. The MCP server is available only for fallback discovery and exposes:
 
 - `browser_navigate(url)` — open a URL
 - `browser_snapshot()` — return the accessibility tree of the current page, with `ref` handles for every element
@@ -26,27 +28,31 @@ Don't script the login form. Ask the CLI for a one-time auto-login URL and navig
 
     SCRATCH_URL=$(sf org open --url-only --target-org "$SCRATCH_ORG_ALIAS" --json | jq -r .result.url)
 
-Then `browser_navigate(SCRATCH_URL)`. You land already logged in. The URL is single-use; if you need a second session, request another.
+Navigate to that URL in MCP fallback discovery, or pass it as `SCRATCH_URL` for scripted runs. You land already logged in. The URL is single-use; if you need a second session, request another. Do not write it into a JS file.
 
-## Find things via the accessibility tree, not CSS
+## Find Things By Role, Not CSS
 
-`browser_snapshot` dumps the a11y tree with `ref` handles. Read the snapshot, identify the element by its accessible name + role ("button Save", "textbox Subject"), then act on it by ref:
+In scripts, prefer Playwright locators such as `getByRole`, `getByLabel`, and `getByText` with stable business text. Lightning selectors against Shadow DOM internals are brittle.
 
-    browser_click({ element: "Save button", ref: "<ref-from-snapshot>" })
-    browser_type({ element: "Subject field", ref: "<ref-from-snapshot>", text: "value" })
+If the scripted run cannot determine selectors, use MCP briefly: `browser_snapshot` dumps the a11y tree with `ref` handles. Read the snapshot, identify the element by its accessible name + role ("button Save", "textbox Subject"), then encode that role/name in the script:
+
+    page.getByRole('button', { name: 'Save' }).click()
+    page.getByRole('textbox', { name: 'Subject' }).fill('value')
 
 Lightning composes shadow roots into the a11y tree, so this works across LWC, Aura, and Visualforce without per-component selectors.
 
 ## Wait before you assert
 
-Lightning pages spinner. Before every assertion: `browser_wait_for({ text: "<known anchor>" })` for a stable anchor element you expect (the record name, a section header, the Save button). Then `browser_snapshot()`. If the anchor never shows up after two reasonable waits, report `UI-INCONCLUSIVE` rather than `UI-FAIL` — flaky load ≠ broken feature.
+Lightning pages spinner. Before every assertion, wait for a stable anchor you expect: the record name, a section header, the Save button, or the exact response text. In scripts, use `expect(locator).toBeVisible()` or `page.waitForFunction(...)`; in MCP fallback, use `browser_wait_for({ text: "<known anchor>" })`. If the anchor never shows up after two reasonable waits, report `UI-INCONCLUSIVE` rather than `UI-FAIL` — flaky load ≠ broken feature.
 
-## Capture evidence and put it on the PR
+## Screenshot Evidence
 
-Every assertion writes a screenshot. Write to a path **inside the branch** so the screenshots ride along with the commit and GitHub renders them inline in the PR body by relative URL:
+Every assertion writes a screenshot. Use Playwright CLI/scripted screenshots by default; use MCP screenshots only for fallback exploration. Write to a path **inside the branch** so the screenshots ride along with the commit and GitHub renders them inline in the PR body by raw URL:
 
     mkdir -p ".verification/pr-$ISSUE_NUMBER"
-    # then:
+    # then either:
+    page.screenshot({ path: ".verification/pr-$ISSUE_NUMBER/<scenarioId>.png", fullPage: true })
+    # or, from MCP fallback discovery:
     browser_take_screenshot({ filename: ".verification/pr-$ISSUE_NUMBER/<scenarioId>.png", fullPage: true })
     git add -f ".verification/pr-$ISSUE_NUMBER/<scenarioId>.png"
 
@@ -75,13 +81,15 @@ Always pair screenshots with the scratch-org auto-login URL (see `sf-ticket-to-p
 
 Two shapes:
 
-**Bug reproduction.** The ticket describes broken behaviour. Before writing any fix, navigate to the broken state, snapshot + screenshot. Attach the repro evidence. After the fix deploys, re-run the same scenario and confirm it now passes.
+**Bug reproduction.** The ticket describes broken behaviour. Before writing any fix, navigate to the broken state and capture screenshot evidence. Attach the repro evidence. After the fix deploys, re-run the same scenario and confirm it now passes.
 
 **Feature verification.** After the change is deployed, walk through the acceptance criteria, screenshot the passing state. Cap at five screenshots per PR.
 
-## Video recording
+## Video Evidence
 
 The MCP server cannot record video. When the full interaction sequence — user input → system processes → response appears — is the thing being proven, write a short Node.js script and run it via Bash. Playwright's `recordVideo` context option captures the session and flushes the file to disk when the context is closed.
+
+MCP is only for discovering the UI shape before writing the script. The script is the verification artifact. It must fail if Salesforce shows login, Access Denied, Setup instead of the target page, a blank page, the wrong record, or if the expected UI text never appears. Backend SOQL plus a video file is not enough; the recorded pixels must prove the UI flow.
 
 **Step 1 — locate the Chromium binary and the playwright module.** The workflow already installed Chromium via `npx playwright install --with-deps chromium`. Find it before writing the script:
 
@@ -96,17 +104,23 @@ For the `import`, install playwright temporarily so the module resolves cleanly:
 
     npm install --no-save playwright
 
-**Step 2 — write the script.** Only four variables to fill in:
+**Step 2 — write the script.** Pass volatile values through environment variables. Do not embed or rewrite frontdoor URLs with `sed`; Salesforce URLs contain `&` and other characters that corrupt shell substitutions.
 
 ```js
 import { chromium } from 'playwright';
-import { mkdir, readdir } from 'fs/promises';
+import { mkdir, rm } from 'fs/promises';
 
-const CHROME     = '<path from the find command above>';
-const FRONTDOOR  = '<sf org open --url-only --json | jq -r .result.url>';
-const VIDEO_DIR  = '.verification/pr-<N>';
-const EXPECTED   = '<word or phrase that will appear on the page when the interaction is done>';
+const CHROME     = process.env.CHROME;
+const FRONTDOOR  = process.env.SCRATCH_URL;
+const VIDEO_DIR  = process.env.VIDEO_DIR || '.verification/pr-<N>';
+const EXPECTED   = process.env.EXPECTED_TEXT;
+const TARGET_TEXT = process.env.TARGET_TEXT;
 
+if (!CHROME || !FRONTDOOR || !EXPECTED) {
+  throw new Error('CHROME, SCRATCH_URL, and EXPECTED_TEXT are required');
+}
+
+await rm(VIDEO_DIR, { recursive: true, force: true });
 await mkdir(VIDEO_DIR, { recursive: true });
 const browser = await chromium.launch({ headless: true, executablePath: CHROME });
 const context = await browser.newContext({
@@ -116,11 +130,33 @@ const context = await browser.newContext({
 const page = await context.newPage();
 
 await page.goto(FRONTDOOR, { waitUntil: 'domcontentloaded' });
-await page.waitForURL('**/lightning/**', { timeout: 20000 });
+await page.waitForTimeout(3000); // give frontdoor time to set the session cookie
+
+async function rejectBadShell(label) {
+  const text = await page.locator('body').innerText({ timeout: 10000 }).catch(() => '');
+  const url = page.url();
+  if (!text.trim()) {
+    throw new Error(`${label}: Salesforce page body is blank`);
+  }
+  if (/Access Denied|Salesforce login|Log In to Sandbox|You've been logged out/i.test(text) || /\/setup\/|\/SetupOneHome/i.test(url)) {
+    throw new Error(`${label}: not authenticated or blocked by Salesforce shell`);
+  }
+}
+
+async function assertTargetPage(label) {
+  if (!TARGET_TEXT) return;
+  const text = await page.locator('body').innerText({ timeout: 10000 }).catch(() => '');
+  if (TARGET_TEXT && !text.includes(TARGET_TEXT)) {
+    throw new Error(`${label}: expected target text not found: ${TARGET_TEXT}`);
+  }
+}
+
+await rejectBadShell('after frontdoor login');
 
 // Navigate and interact.
-// Discover element names and roles via browser_snapshot() first, then use getByRole / getByText.
-// Nothing should be hardcoded here — discover at runtime.
+// Use stable business text and role selectors, not CSS selectors.
+// If selectors are unclear, use one MCP browser_snapshot() to discover roles/names,
+// then encode those getByRole/getByText locators here.
 
 // Stop the moment the expected phrase is visible — no fixed sleep, no networkidle
 await page.waitForFunction(
@@ -128,30 +164,57 @@ await page.waitForFunction(
   EXPECTED,
   { timeout: 90000, polling: 1000 }
 );
+await rejectBadShell('before closing video');
+await assertTargetPage('before closing video');
 await page.waitForTimeout(3000); // let the response settle visually
 
+const video = page.video();
+if (!video) {
+  throw new Error('Playwright did not create a video for this page');
+}
 await context.close(); // flushes the video file to disk
 await browser.close();
 
-const [video] = (await readdir(VIDEO_DIR)).filter(f => f.endsWith('.webm'));
-console.log(`webm: ${VIDEO_DIR}/${video}`);
+console.log(`webm: ${await video.path()}`);
 ```
 
-**Step 3 — convert and commit alongside screenshots:**
+Run it like this:
 
-    ffmpeg -i .verification/pr-<N>/<file>.webm -c:v libx264 -preset fast -crf 22 -movflags +faststart \
+```bash
+CHROME="$CHROME" \
+SCRATCH_URL="$(sf org open --url-only --target-org "$SCRATCH_ORG_ALIAS" --json | jq -r .result.url)" \
+VIDEO_DIR=".verification/pr-<N>" \
+EXPECTED_TEXT="<text that proves the final UI state>" \
+TARGET_TEXT="<record name or page anchor that proves the right page>" \
+node .verification/pr-<N>/record-video.mjs
+```
+
+**Step 3 — convert the current video only.** Use the `webm:` path printed by the script. Do not scan the directory or pick the first `.webm`.
+
+    ffmpeg -i "<webm path printed by script>" -c:v libx264 -preset fast -crf 22 -movflags +faststart \
       .verification/pr-<N>/session.mp4 -y
+
+**Step 4 — inspect frames before committing or linking.** Extract frames from the final `.verification/pr-<N>/session.mp4`. A video file existing is not evidence; the content is evidence.
+
+    .claude/skills/playwright-sf/scripts/extract-video-frames.sh \
+      .verification/pr-<N>/session.mp4 /tmp/pr-<N>-frames
+
+Open at least the first, middle, and last frame with an image viewer or image-capable tool. If any frame shows login, Access Denied, Setup, a blank page, or the wrong record, the video is invalid. Re-record it. Do not link or commit it, and do not claim video verification in the PR.
+
+After frame inspection passes:
+
     git add -f .verification/pr-<N>/session.mp4
 
-**Step 4 — link from the PR body.** GitHub Markdown does not auto-embed video from `raw.githubusercontent.com`, but the browser plays it natively when the reviewer clicks through — one click, new tab, plays immediately:
+**Step 5 — link from the PR body.** GitHub Markdown does not auto-embed video from `raw.githubusercontent.com`, but the browser plays it natively when the reviewer clicks through — one click, new tab, plays immediately:
 
     [Watch recording](https://raw.githubusercontent.com/<owner>/<repo>/<branch>/.verification/pr-<N>/session.mp4)
 
-**Finding elements for the script.** Before writing the script, take a `browser_snapshot()` via the MCP tools to see the current a11y tree. Read the accessible names and roles of the elements you need, then use `getByRole` / `getByText` in the script. Never hardcode element names — Lightning page composition varies by org configuration.
+**Finding elements for the script.** Start with Playwright role/text locators. If they fail or the names are unclear, take one `browser_snapshot()` via the MCP tools to see the current a11y tree. Read the accessible names and roles of the elements you need, then use `getByRole` / `getByText` in the script. Do not keep looping through MCP snapshots once the selectors are known.
 
 ## Anti-patterns
 
 - Logging in by filling the username/password form. Use the frontdoor URL.
+- Rewriting frontdoor URLs into scripts with `sed`. Pass them as environment variables.
 - Picking elements by CSS selectors. Use a11y `ref` handles from `browser_snapshot`.
 - Marking a flaky load as `UI-FAIL`. Use `UI-INCONCLUSIVE`.
 - More than ~5 screenshots per PR. CI budget isn't infinite; pick the ones that prove the change.
@@ -159,3 +222,7 @@ console.log(`webm: ${VIDEO_DIR}/${video}`);
 - Using `waitForLoadState('networkidle')` on Lightning pages — it never settles. Wait for a specific element instead.
 - Recording video with the MCP tools — they cannot. Use the Node.js script above.
 - Using a fixed sleep or timeout to decide when to stop recording. Wait for the expected response text, then close immediately.
+- Selecting a video file with `readdir(...).find(f => f.endsWith('.webm'))`. Clean the video directory before recording and use `await page.video().path()` for the current page. Otherwise an old failed recording can be converted and committed.
+- Claiming video verification without inspecting frames from the committed `session.mp4`.
+- Treating backend SOQL assertions as proof that the recorded UI is correct.
+- Looping through MCP snapshots after a CLI/scripted approach has enough selectors.
