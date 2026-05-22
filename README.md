@@ -60,7 +60,7 @@ Reusable GitHub Actions workflows that drive the `@butler` agent end-to-end: tri
 
 | Workflow | What it does |
 | -------- | ------------ |
-| **[sf-ticket-to-pr.yml](.github/workflows/sf-ticket-to-pr.yml)** | Two-job pipeline: triage (Claude only, no infra) then execute (scratch org, deploy, test, PR). Triggered by `@butler` mentions anywhere in an issue or PR thread. |
+| **[sf-ticket-to-pr.yml](.github/workflows/sf-ticket-to-pr.yml)** | Gate + triage + execute pipeline: first checks the trigger and actor permission, then triages with Claude, then provisions a scratch org, deploys, tests, and opens a PR. Triggered by `@butler` mentions anywhere in an issue or PR thread. |
 | **[sf-pr-cleanup.yml](.github/workflows/sf-pr-cleanup.yml)** | Fires on PR close — deletes the cached scratch org and auth entry. Best-effort; logs a notice if either is already gone. |
 
 **Scripts** ([scripts/](scripts/))
@@ -99,7 +99,7 @@ sequenceDiagram
 
 #### 2.2.1 Triage job
 
-The first job runs only Claude — no Salesforce CLI, no scratch org. A clarification or refusal costs cents, not a provisioning cycle. Claude reads the full thread against the `sf-ticket-to-pr` skill and picks one outcome:
+After the cheap permission gate, the triage job runs only Claude — no Salesforce CLI, no scratch org. A clarification or refusal costs cents, not a provisioning cycle. Claude reads the full thread against the `sf-ticket-to-pr` skill and picks one outcome:
 
 - **Take it** — posts a plan, ends the comment with a hidden `<!-- butler:proceed -->` marker. The execute job greps for it and starts.
 - **Clarify** — asks one or two specific questions. Stops. Mention `@butler` again once you've answered.
@@ -110,7 +110,7 @@ The first job runs only Claude — no Salesforce CLI, no scratch org. A clarific
 
 The scratch org is provisioned once per issue. Its SFDX auth URL is cached under `scratch-auth-pr-<issue-number>` — keyed on the issue, not the PR, so the same org survives across the initial run and every follow-up commit. `create-scratch-org.sh` re-logs into the cached org in seconds; it falls back to a full provision only if the org expired (30-day limit) or the cache was evicted. A `concurrency:` group on the issue number prevents two runs from hitting the same org simultaneously.
 
-Claude runs in `bypassPermissions` mode — the `author_association` gate on the workflow already handles access control. After deploying and running Apex tests, it calls `sf-code-analyzer` for PMD and, for user-visible changes, drives the org via Playwright CLI/scripts to capture UI evidence. Screenshots land inline in the PR body; interactive flows can include video only after the final MP4 has been frame-inspected for the expected Salesforce UI.
+Claude runs in `bypassPermissions` mode — the workflow gate already handles trigger and actor-permission checks. After deploying and running Apex tests, it calls `sf-code-analyzer` for PMD and, for user-visible changes, drives the org via Playwright CLI/scripts to capture UI evidence. Screenshots land inline in the PR body; interactive flows can include video only after the final MP4 has been frame-inspected for the expected Salesforce UI.
 
 ### 2.3 Metadata failure memory
 

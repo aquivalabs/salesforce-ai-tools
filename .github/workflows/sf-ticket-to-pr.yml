@@ -9,9 +9,8 @@ run-name: "Ticket #${{ github.event.issue.number || github.event.pull_request.nu
 # is no label state machine; every fire is independent and re-reads the
 # conversation from scratch.
 #
-# Cost protection: events from anyone whose author_association isn't OWNER,
-# MEMBER, or COLLABORATOR are silently ignored. That replaces the old
-# "delegate-to-ai label" gate without leaving an open-source DoS surface.
+# Cost protection: a cheap gate job verifies the triggering user has write,
+# maintain, or admin permission before the Claude-backed triage job runs.
 # Bot-authored events are also dropped so the agent can't summon itself.
 #
 # The only label still in use is `ai-involved`, applied by the agent when it
@@ -29,34 +28,86 @@ on:
     types: [created]
 
 jobs:
+  gate:
+    name: gate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+    outputs:
+      proceed: ${{ steps.gate.outputs.proceed }}
+    steps:
+      - name: Check trigger and actor permission
+        id: gate
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_USER: ${{ github.event.issue.user.login }}
+          ISSUE_USER_TYPE: ${{ github.event.issue.user.type }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          COMMENT_USER: ${{ github.event.comment.user.login }}
+          COMMENT_USER_TYPE: ${{ github.event.comment.user.type }}
+          REVIEW_BODY: ${{ github.event.review.body }}
+          REVIEW_USER: ${{ github.event.review.user.login }}
+          REVIEW_USER_TYPE: ${{ github.event.review.user.type }}
+        run: |
+          BODY=""
+          ACTOR=""
+          ACTOR_TYPE=""
+
+          case "$EVENT_NAME" in
+            issues)
+              BODY="$ISSUE_BODY"
+              ACTOR="$ISSUE_USER"
+              ACTOR_TYPE="$ISSUE_USER_TYPE"
+              ;;
+            issue_comment|pull_request_review_comment)
+              BODY="$COMMENT_BODY"
+              ACTOR="$COMMENT_USER"
+              ACTOR_TYPE="$COMMENT_USER_TYPE"
+              ;;
+            pull_request_review)
+              BODY="$REVIEW_BODY"
+              ACTOR="$REVIEW_USER"
+              ACTOR_TYPE="$REVIEW_USER_TYPE"
+              ;;
+          esac
+
+          if [ "$ACTOR_TYPE" = "Bot" ]; then
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Ignoring bot-authored event."
+            exit 0
+          fi
+
+          if [[ "$BODY" != *"@butler"* ]]; then
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No @butler mention in triggering text."
+            exit 0
+          fi
+
+          PERMISSION=$(gh api "/repos/$REPO/collaborators/$ACTOR/permission" --jq .permission 2>/dev/null || echo "none")
+          case "$PERMISSION" in
+            admin|maintain|write)
+              echo "proceed=true" >> "$GITHUB_OUTPUT"
+              echo "::notice::Accepted @butler trigger from $ACTOR with $PERMISSION permission."
+              ;;
+            *)
+              echo "proceed=false" >> "$GITHUB_OUTPUT"
+              echo "::notice::Ignoring @butler trigger from $ACTOR with $PERMISSION permission."
+              ;;
+          esac
+
   # Cheap first pass: read the thread, decide whether to proceed. Posts
   # whatever comment the agent thinks is appropriate (plan, clarifying
   # question, split proposal, refusal). Outputs proceed=true only when the
   # agent has committed to doing the work in the same run.
   triage:
     name: triage
-    # Author-association strings live in event-specific paths; flatten them
-    # here. The contains() checks both gate access AND filter out events
-    # without an @butler mention so we don't burn Claude credits on noise.
-    if: |
-      (
-        (github.event_name == 'issues' &&
-         contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association) &&
-         contains(github.event.issue.body, '@butler') &&
-         github.event.issue.user.type != 'Bot') ||
-        (github.event_name == 'issue_comment' &&
-         contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
-         contains(github.event.comment.body, '@butler') &&
-         github.event.comment.user.type != 'Bot') ||
-        (github.event_name == 'pull_request_review' &&
-         contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.review.author_association) &&
-         contains(github.event.review.body, '@butler') &&
-         github.event.review.user.type != 'Bot') ||
-        (github.event_name == 'pull_request_review_comment' &&
-         contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
-         contains(github.event.comment.body, '@butler') &&
-         github.event.comment.user.type != 'Bot')
-      )
+    needs: gate
+    if: needs.gate.outputs.proceed == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
