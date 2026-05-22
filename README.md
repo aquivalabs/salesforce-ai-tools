@@ -1,11 +1,12 @@
-# salesforce-ai-tools
+# salesforce-ai-tools [`v2026.5.0`](https://github.com/aquivalabs/salesforce-ai-tools/releases/tag/v2026.5.0)
 
-Reusable GitHub Actions workflows and Claude Code skills for AI-assisted Salesforce development. Drop these into any Salesforce repo to get an AI agent that triages issues, opens pull requests, verifies UI changes, and more — all triggered by a simple `@butler` mention.
+Reusable GitHub Actions workflows and a versioned Claude Code plugin for AI-assisted Salesforce development. Drop these into any Salesforce repo to get an AI agent that triages issues, opens pull requests, verifies UI changes, and more — all triggered by a simple `@butler` mention.
 
 ## Contents
 
-- [1. Skills](#1-skills)
+- [1. Claude plugin](#1-claude-plugin)
   - [1.1 Install locally](#11-install-locally)
+  - [1.2 Install for a project](#12-install-for-a-project)
 - [2. GitHub pipelines](#2-github-pipelines)
   - [2.1 Workflows and scripts](#21-workflows-and-scripts)
   - [2.2 How the pipeline works](#22-how-the-pipeline-works)
@@ -17,36 +18,53 @@ Reusable GitHub Actions workflows and Claude Code skills for AI-assisted Salesfo
 
 ---
 
-## 1. Skills
+## 1. Claude plugin
 
-Specialized behaviors Claude Code loads at runtime. In CI the reusable workflow checks out this repo automatically — no setup needed. For local use, see [1.1 Install locally](#11-install-locally) below.
+Specialized behaviors Claude Code loads from the `salesforce-ai-tools` plugin. In CI the reusable workflow installs the plugin automatically — no setup needed. For local use, see [1.1 Install locally](#11-install-locally) below.
 
 | Skill | What it does | Contributed by |
 | ----- | ------------ | -------------- |
-| **[sf-ticket-to-pr](.claude/skills/sf-ticket-to-pr/SKILL.md)** | The core pipeline skill. Reads a GitHub issue or PR thread, decides whether to take it, clarify, split into sub-stories, or refuse — then codes, deploys to a scratch org, runs tests and PMD, captures Playwright UI evidence, opens a PR, and posts an auto-login org URL. It also keeps a small versioned Salesforce metadata failure memory so repeated deploy mistakes become searchable local knowledge. | [@rsoesemann](https://github.com/rsoesemann) |
-| **[agentforce](.claude/skills/agentforce/SKILL.md)** | Tests and deploys Agentforce agents and prompt templates — multi-turn demo story, prompt template regression, Testing Center migration, and the manual fixups Salesforce CLI doesn't handle when iterating on Agentforce metadata. | [@anmolgkv](https://github.com/anmolgkv) |
-| **[agentforce-deploy](.claude/skills/agentforce-deploy/SKILL.md)** | Encodes the manual fixups Salesforce CLI does not handle when deploying Agentforce metadata — schema.json scaffolding for genAiFunctions, prompt-template `versionIdentifier` bumps, schema-only-edit detection nudge, planner bundle topic refresh, and the deactivate/deploy/reactivate flow when an active agent blocks a deploy. | [@anmolgkv](https://github.com/anmolgkv) · [#12](https://github.com/aquivalabs/aquiva-skills/pull/12) |
-| **[playwright-sf](.claude/skills/playwright-sf/SKILL.md)** | Verifies Salesforce Lightning UI flows with Playwright CLI/scripts first, using MCP only for fallback selector discovery. Captures screenshots and frame-inspected video evidence for user-visible changes. | [@rsoesemann](https://github.com/rsoesemann) |
-| **[sf-code-analyzer](.claude/skills/sf-code-analyzer/SKILL.md)** | Runs Salesforce Code Analyzer on changed Apex, Flow, or metadata files with smart rule selection. Detects managed packages and applies AppExchange security rules when relevant, otherwise runs opinionated clean-code rules. Invoked automatically by sf-ticket-to-pr after every code change. | [@rsoesemann](https://github.com/rsoesemann) |
-| **[markdown-web](.claude/skills/markdown-web/SKILL.md)** | Fetches JS-rendered webpages via headless Chromium and returns clean markdown. Cracks shadow DOM and cookie-consent walls that defeat `WebFetch` — especially useful for help.salesforce.com and developer.salesforce.com docs. Per-domain rules live in `sites.json`. | [@aidan-harding](https://github.com/aidan-harding) · [#4](https://github.com/aquivalabs/aquiva-skills/pull/4) |
+| **[sf-ticket-to-pr](plugins/salesforce-ai-tools/skills/sf-ticket-to-pr/SKILL.md)** | The core pipeline skill. Reads a GitHub issue or PR thread, decides whether to take it, clarify, split into sub-stories, or refuse — then codes, deploys to a scratch org, runs tests and PMD, captures Playwright UI evidence, opens a PR, and posts an auto-login org URL. It also keeps a small versioned Salesforce metadata failure memory so repeated deploy mistakes become searchable local knowledge. | [@rsoesemann](https://github.com/rsoesemann) |
+| **[agentforce](plugins/salesforce-ai-tools/skills/agentforce/SKILL.md)** | Tests and deploys Agentforce agents and prompt templates — multi-turn demo story, prompt template regression, Testing Center migration, and the manual fixups Salesforce CLI doesn't handle when iterating on Agentforce metadata. | [@anmolgkv](https://github.com/anmolgkv) |
+| **[agentforce-deploy](plugins/salesforce-ai-tools/skills/agentforce-deploy/SKILL.md)** | Encodes the manual fixups Salesforce CLI does not handle when deploying Agentforce metadata — schema.json scaffolding for genAiFunctions, prompt-template `versionIdentifier` bumps, schema-only-edit detection nudge, planner bundle topic refresh, and the deactivate/deploy/reactivate flow when an active agent blocks a deploy. | [@anmolgkv](https://github.com/anmolgkv) · [#12](https://github.com/aquivalabs/aquiva-skills/pull/12) |
+| **[playwright-sf](plugins/salesforce-ai-tools/skills/playwright-sf/SKILL.md)** | Verifies Salesforce Lightning UI flows with Playwright CLI/scripts first, using MCP only for fallback selector discovery. Captures screenshots and frame-inspected video evidence for user-visible changes. | [@rsoesemann](https://github.com/rsoesemann) |
+| **[sf-code-analyzer](plugins/salesforce-ai-tools/skills/sf-code-analyzer/SKILL.md)** | Runs Salesforce Code Analyzer on changed Apex, Flow, or metadata files with smart rule selection. Detects managed packages and applies AppExchange security rules when relevant, otherwise runs opinionated clean-code rules. Invoked automatically by sf-ticket-to-pr after every code change. | [@rsoesemann](https://github.com/rsoesemann) |
+| **[markdown-web](plugins/salesforce-ai-tools/skills/markdown-web/SKILL.md)** | Fetches JS-rendered webpages via headless Chromium and returns clean markdown. Cracks shadow DOM and cookie-consent walls that defeat `WebFetch` — especially useful for help.salesforce.com and developer.salesforce.com docs. Per-domain rules live in `sites.json`. | [@aidan-harding](https://github.com/aidan-harding) · [#4](https://github.com/aquivalabs/aquiva-skills/pull/4) |
 
 ### 1.1 Install locally
 
-Clone this repo once and run `scripts/install-sf-ai-tools.sh`. It symlinks skills, rules, and settings into `~/.claude/` so they're available in every project on your machine.
+Add the Aquiva Labs marketplace and install the plugin:
 
 ```bash
-git clone https://github.com/aquivalabs/salesforce-ai-tools ~/salesforce-ai-tools
-~/salesforce-ai-tools/scripts/install-sf-ai-tools.sh
+claude plugin marketplace add aquivalabs/salesforce-ai-tools
+claude plugin install salesforce-ai-tools@aquiva-labs
 ```
 
-Then invoke any skill with a slash command in Claude Code:
+Existing automation can use the compatibility installer; it uses the same Claude plugin commands and does not copy or symlink skills:
+
+```bash
+scripts/install-sf-ai-tools.sh
+```
+
+Then reload plugins and invoke skills by their plugin-qualified names:
 
 ```text
-/sf-code-analyzer
-/agentforce-deploy
+/reload-plugins
+/salesforce-ai-tools:sf-code-analyzer
+/salesforce-ai-tools:agentforce-deploy
 ```
 
-Pulling the latest version of this repo is all you need to update — the symlinks always point to the current files.
+Plugin versions match GitHub releases. Release `v2026.5.0` contains plugin version `2026.5.0`.
+
+### 1.2 Install for a project
+
+For repos that should always use these tools, install the marketplace and plugin at project scope:
+
+```bash
+scripts/install-sf-ai-tools.sh --scope project
+```
+
+That records the plugin dependency in the project instead of asking every contributor to clone this repo or run a symlink installer.
 
 ---
 
@@ -63,12 +81,13 @@ Reusable GitHub Actions workflows that drive the `@butler` agent end-to-end: tri
 | **[sf-ticket-to-pr.yml](.github/workflows/sf-ticket-to-pr.yml)** | Gate + triage + execute pipeline: first checks the trigger and actor permission, then triages with Claude, then provisions a scratch org, deploys, tests, and opens a PR. Triggered by `@butler` mentions anywhere in an issue or PR thread. |
 | **[sf-pr-cleanup.yml](.github/workflows/sf-pr-cleanup.yml)** | Fires on PR close — deletes the cached scratch org and auth entry. Best-effort; logs a notice if either is already gone. |
 
-**Scripts** ([scripts/](scripts/))
+**Scripts**
 
 | Script | What it does |
 | ------ | ------------ |
+| **[install-sf-ai-tools.sh](scripts/install-sf-ai-tools.sh)** | Installs the `salesforce-ai-tools` Claude plugin through the Aquiva Labs marketplace. Kept for downstream repos that already call the old installer name. |
 | **[create-scratch-org.sh](scripts/create-scratch-org.sh)** | Provisions a scratch org on first run, restores it from GitHub Actions cache on every follow-up. Falls through to a full provision if the org has expired or the cache was evicted. Same script for CI (`HEADLESS=true`) and local dev. |
-| **[report-ai-cost.sh](scripts/report-ai-cost.sh)** | Reads the SDK execution file, extracts token counts and cost, appends a footer to the PR comment, and updates a sticky cost-rollup on the originating issue using hidden HTML markers so totals survive comment edits. |
+| **[report-ai-cost.sh](.github/scripts/report-ai-cost.sh)** | Reads the SDK execution file, extracts token counts and cost, appends a footer to the PR comment, and updates a sticky cost-rollup on the originating issue using hidden HTML markers so totals survive comment edits. |
 
 ### 2.2 How the pipeline works
 
@@ -114,7 +133,7 @@ Claude runs in `bypassPermissions` mode — the workflow gate already handles tr
 
 ### 2.3 Metadata failure memory
 
-`sf-ticket-to-pr` carries a small Karpathy-style local wiki under [.claude/skills/sf-ticket-to-pr/knowledge/](.claude/skills/sf-ticket-to-pr/knowledge/), inspired by Andrej Karpathy's [LLM Wiki gist](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f). It is not general documentation. It is retrieval-oriented pipeline memory for Salesforce metadata failures.
+`sf-ticket-to-pr` carries a small Karpathy-style local wiki under [plugins/salesforce-ai-tools/skills/sf-ticket-to-pr/knowledge/](plugins/salesforce-ai-tools/skills/sf-ticket-to-pr/knowledge/), inspired by Andrej Karpathy's [LLM Wiki gist](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f). It is not general documentation. It is retrieval-oriented pipeline memory for Salesforce metadata failures.
 
 When a metadata deploy fails, Butler must stop editing, classify the failing metadata type, read the routed knowledge file, apply one targeted fix, and redeploy the smallest relevant source path. If local knowledge is missing, it prefers live scratch-org retrieval, then official Salesforce docs, public GitHub examples for metadata shape, and Salesforce StackExchange only for error interpretation.
 
@@ -145,7 +164,7 @@ Every PR opened by butler includes:
 | 🧠 **Metadata failure memory** | Repeated Salesforce metadata mistakes are captured as compact local learnings with explicit human-review trust markers. |
 | 💰 **Cost transparency** | Both triage and execute report cost. The originating issue carries a sticky rollup, one row per `@butler` cycle. |
 | 🤖 **No GitHub App needed** | Commits and PRs go out as `github-actions[bot]` via the built-in `GITHUB_TOKEN`. Bot-authored events don't retrigger the workflow. |
-| ♻️ **One script for dev and CI** | `create-scratch-org.sh` is what developers run locally too — CI just sets `HEADLESS=true`. |
+| ♻️ **One plugin for dev and CI** | Claude Code installs the same `salesforce-ai-tools` plugin locally and in GitHub Actions. |
 
 ### 2.7 Using in your repo
 
@@ -189,7 +208,7 @@ jobs:
     secrets: inherit
 ```
 
-The `on:` block stays in your repo. The `uses:` line delegates all logic here — this repo checks itself out at runtime so Claude has access to all skills automatically.
+The `on:` block stays in your repo. The `uses:` line delegates all logic here — this repo checks itself out at runtime, installs the Claude plugin, and runs the same skills used locally.
 
 #### 2.7.2 Set repo secrets
 

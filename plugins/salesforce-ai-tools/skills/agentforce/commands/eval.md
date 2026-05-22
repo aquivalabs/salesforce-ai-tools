@@ -111,7 +111,7 @@ Multi-turn agent specs live in `agent-eval/`:
 - `prompt-regression.yaml` — smoke tests that exercise specific prompt templates (`ConsolidateMemory`, `AnswerFromFile`) through the agent.
 
 Split of responsibilities:
-- **Mechanical work** — REST calls, session chaining, `agentResponse.value` unwrap, parallelism, transcript capture — handled by `.claude/skills/agentforce/run.mjs`.
+- **Mechanical work** — REST calls, session chaining, `agentResponse.value` unwrap, parallelism, transcript capture — handled by the plugin's `agentforce-run` executable.
 - **Judgment** — grading each turn's reply against its plain-English `expect` — handled by Claude in this conversation.
 
 Why this endpoint: the `generateAiAgentResponse` invocable action is exposed at `/services/data/vXX.X/actions/custom/generateAiAgentResponse/<AgentApiName>`. `sf api request rest` hits it with the CLI's existing org auth — no Connected App, no JWT, no api.salesforce.com. Multi-turn works by passing the returned `sessionId` back into the next call.
@@ -142,16 +142,16 @@ A test can also be single-turn (`say`/`expect` at the test level instead of `tur
 ### Running
 
 ```bash
-node .claude/skills/agentforce/run.mjs agent-eval/demo-story.yaml --org my-org-butler_DEV
-node .claude/skills/agentforce/run.mjs agent-eval/prompt-regression.yaml --org my-org-butler_DEV
+agentforce-run agent-eval/demo-story.yaml --org my-org-butler_DEV
+agentforce-run agent-eval/prompt-regression.yaml --org my-org-butler_DEV
 ```
 
 Both can run in parallel (each test has its own session, no cross-spec coupling):
 
 ```bash
 mkdir -p /tmp/ae && rm -f /tmp/ae/*.json
-node .claude/skills/agentforce/run.mjs agent-eval/demo-story.yaml --org my-org-butler_DEV &
-node .claude/skills/agentforce/run.mjs agent-eval/prompt-regression.yaml --org my-org-butler_DEV &
+agentforce-run agent-eval/demo-story.yaml --org my-org-butler_DEV &
+agentforce-run agent-eval/prompt-regression.yaml --org my-org-butler_DEV &
 wait
 ```
 

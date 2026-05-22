@@ -33,4 +33,4 @@ REST agent tests:  agent-eval/demo-story.yaml         (multi-turn demo workflow)
                    multi-turn via the returned sessionId; judged by Claude in-memory
 ```
 
-Neither layer needs an `.env` file. Agent name comes from each spec's `agent:` field; the org connection comes from the `--org` flag on `run.mjs`. REST calls, `sessionId` chaining, and response unwrapping are handled by `.claude/skills/agentforce/run.mjs` — Claude judges the resulting transcripts.
+Neither layer needs an `.env` file. Agent name comes from each spec's `agent:` field; the org connection comes from the `--org` flag on `agentforce-run`. REST calls, `sessionId` chaining, and response unwrapping are handled by the plugin's `agentforce-run` executable — Claude judges the resulting transcripts.

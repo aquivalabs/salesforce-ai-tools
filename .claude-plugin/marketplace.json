@@ -1,0 +1,14 @@
+{
+  "name": "aquiva-labs",
+  "owner": {
+    "name": "Aquiva Labs",
+    "email": "rsoesemann@aquiva.com"
+  },
+  "plugins": [
+    {
+      "name": "salesforce-ai-tools",
+      "source": "./plugins/salesforce-ai-tools",
+      "description": "Salesforce AI development tools for Claude Code: ticket-to-PR automation, Agentforce workflows, Salesforce UI verification, code analysis, and markdown web fetching"
+    }
+  ]
+}

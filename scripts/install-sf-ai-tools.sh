@@ -1,28 +1,64 @@
-#!/bin/bash
-# Installs salesforce-ai-tools skills and rules into ~/.claude/
-# Run once locally; re-run to update.
+#!/usr/bin/env bash
+set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-CLAUDE_DIR="${CLAUDE_DIR:-$HOME/.claude}"
+# Installs the salesforce-ai-tools Claude plugin.
+#
+# This script intentionally keeps the old filename used by downstream repos,
+# but it no longer symlinks skills into ~/.claude. Claude Code owns plugin
+# installation, versioning, and cache layout.
 
-mkdir -p "$CLAUDE_DIR/skills" "$CLAUDE_DIR/rules/salesforce"
+SCOPE="${SCOPE:-user}"
+SOURCE="${SOURCE:-aquivalabs/salesforce-ai-tools}"
+MARKETPLACE="aquiva-labs"
+PLUGIN="salesforce-ai-tools"
 
-for skill_dir in "$REPO_DIR/.claude/skills"/*/; do
-  skill_name=$(basename "$skill_dir")
-  ln -sfn "$skill_dir" "$CLAUDE_DIR/skills/$skill_name"
-  echo "Linked skill: $skill_name"
+usage() {
+  cat <<'EOF'
+Usage: scripts/install-sf-ai-tools.sh [--scope user|project|local] [--source <repo-or-path>]
+
+Examples:
+  scripts/install-sf-ai-tools.sh
+  scripts/install-sf-ai-tools.sh --scope project
+  scripts/install-sf-ai-tools.sh --scope local --source .sf-ai-tools
+EOF
+}
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --scope)
+      SCOPE="${2:-}"
+      shift 2
+      ;;
+    --source)
+      SOURCE="${2:-}"
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
 done
 
-for rules_file in "$REPO_DIR/.claude/rules/salesforce/"*.md; do
-  ln -sfn "$rules_file" "$CLAUDE_DIR/rules/salesforce/$(basename "$rules_file")"
-  echo "Linked rules: $(basename "$rules_file")"
-done
+case "$SCOPE" in
+  user|project|local) ;;
+  *)
+    echo "Invalid scope: $SCOPE. Expected user, project, or local." >&2
+    exit 2
+    ;;
+esac
 
-ln -sfn "$REPO_DIR/.claude/settings.json" "$CLAUDE_DIR/settings.json"
-echo "Linked settings.json"
+if ! command -v claude >/dev/null 2>&1; then
+  echo "Claude Code CLI is required. Install it first, then rerun this script." >&2
+  exit 1
+fi
 
-ln -sfn "$REPO_DIR/.claude/mcp.json" "$CLAUDE_DIR/mcp.json"
-echo "Linked mcp.json"
+claude plugin marketplace add "$SOURCE" --scope "$SCOPE"
+claude plugin install "$PLUGIN@$MARKETPLACE" --scope "$SCOPE"
 
-echo "Done — skills, rules, and settings available globally in Claude Code."
+echo "Installed $PLUGIN@$MARKETPLACE using Claude plugin scope '$SCOPE'."

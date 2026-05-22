@@ -123,14 +123,17 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Checkout salesforce-ai-tools (skills + scripts)
+      - name: Checkout salesforce-ai-tools (plugin + scripts)
         uses: actions/checkout@v6
         with:
           repository: aquivalabs/salesforce-ai-tools
           path: .sf-ai-tools
 
-      - name: Install skills and rules globally
-        run: bash .sf-ai-tools/scripts/install-sf-ai-tools.sh
+      - name: Install Claude Code CLI
+        run: npm install --global @anthropic-ai/claude-code
+
+      - name: Install salesforce-ai-tools plugin
+        run: .sf-ai-tools/scripts/install-sf-ai-tools.sh --scope local --source .sf-ai-tools
 
       # Normalize the event into a few simple variables: is this an issue or a
       # PR? what's the number? if it's a PR, what's the head branch? The agent
@@ -177,7 +180,7 @@ jobs:
         id: claude
         with:
           prompt: |
-            Read ~/.claude/skills/sf-ticket-to-pr/SKILL.md for instructions.
+            Follow the `salesforce-ai-tools:sf-ticket-to-pr` plugin skill for instructions.
 
             You were summoned by an @butler mention on ${{ steps.context.outputs.kind }} #${{ steps.context.outputs.number }} of ${{ github.repository }}.
 
@@ -321,14 +324,17 @@ jobs:
           fetch-depth: 0
           ref: ${{ needs.triage.outputs.kind == 'pr' && needs.triage.outputs.pr_branch || '' }}
 
-      - name: Checkout salesforce-ai-tools (skills + scripts)
+      - name: Checkout salesforce-ai-tools (plugin + scripts)
         uses: actions/checkout@v6
         with:
           repository: aquivalabs/salesforce-ai-tools
           path: .sf-ai-tools
 
-      - name: Install skills and rules globally
-        run: bash .sf-ai-tools/scripts/install-sf-ai-tools.sh
+      - name: Install Claude Code CLI
+        run: npm install --global @anthropic-ai/claude-code
+
+      - name: Install salesforce-ai-tools plugin
+        run: .sf-ai-tools/scripts/install-sf-ai-tools.sh --scope local --source .sf-ai-tools
 
       - name: Configure git
         run: |
@@ -368,7 +374,7 @@ jobs:
         id: claude
         with:
           prompt: |
-            Read ~/.claude/skills/sf-ticket-to-pr/SKILL.md for instructions.
+            Follow the `salesforce-ai-tools:sf-ticket-to-pr` plugin skill for instructions.
 
             You were summoned by an @butler mention on ${{ env.KIND }} #${{ env.NUMBER }}. Triage has already decided you are taking the work in this run; the proceed marker is set. Skip the triage decision and go straight to coding, verifying, and shipping.
 
@@ -381,7 +387,7 @@ jobs:
             Read the full thread for context (`gh ${{ env.KIND == 'pr' && 'pr' || 'issue' }} view ${{ env.NUMBER }} --repo ${{ github.repository }} --comments`).
 
             Tone for human-facing text: strong opinions, no "Great question!" or "I'd be happy to help!", brevity mandatory, no emojis, call out anything unclear or risky.
-          claude_args: "--max-turns 90 --model claude-sonnet-4-6 --mcp-config .sf-ai-tools/.claude/mcp.json --permission-mode bypassPermissions"
+          claude_args: "--max-turns 90 --model claude-sonnet-4-6 --permission-mode bypassPermissions"
           show_full_output: "true"
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
