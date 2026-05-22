@@ -218,11 +218,33 @@ actions, Flows, Permission Sets, and Agentforce metadata. If a similar artifact
 exists in the scratch org, retrieve it and adapt that shape before authoring from
 memory.
 
+### Salesforce CLI command discipline
+
+Run Salesforce CLI metadata commands in the foreground with a Bash timeout. Do
+not background `sf project retrieve start`, `sf project deploy start`, or
+metadata inspection commands. Do not poll `/tmp/claude-*/tasks/*.output` files
+as a normal workflow.
+
+Use this shape:
+
+```bash
+timeout 180 sf project retrieve start --metadata "Layout:Account-Account Layout" --target-org "$SCRATCH_ORG_ALIAS"
+timeout 180 sf project deploy start --source-dir "force-app/main/default/layouts/Account-Account Layout.layout-meta.xml" --concise
+```
+
+If a command was forced into the background by the tool harness, wait for that
+command's result once. Do not start a second equivalent retrieve/deploy while
+the first one is still running.
+
+Before repeating the same metadata list, retrieve, or deploy command, state what
+changed since the previous run. If nothing changed, use the previous output and
+continue with the smallest next step.
+
 ## Step 3 — Verify
 
 Redeploy the changed file (the script already deployed everything else):
 
-    sf project deploy start --source-dir <changed-file-path> --concise
+    timeout 180 sf project deploy start --source-dir <changed-file-path> --concise
 
 If the consuming repo's `CLAUDE.md` describes a namespace strip-deploy-restore
 dance or other pre-deploy massaging, follow that instead.
@@ -370,6 +392,8 @@ without changing the outcome.
 - Investigating PMD findings on lines you did not touch.
 - Calling `create-scratch-org.sh` — the workflow already restored or provisioned the org.
 - Re-deploying everything via `--source-dir force-app` on a follow-up run — only deploy the files you changed.
+- Backgrounding Salesforce CLI metadata commands or polling `/tmp/claude-*/tasks/*.output` instead of using foreground commands with `timeout`.
+- Repeating the same metadata list/retrieve/deploy command without a changed input or an inconclusive prior result.
 - Posting a PR description or reviewer reply without the scratch org auto-login URL.
 - Stopping after a green test run without `git push`.
 - Continuing to run verification commands after the push and summary comment — that's the post-completion loop, exit instead.

@@ -9,6 +9,20 @@
 - If a quick action deploys but is not visible, check whether the changed layout
   is the one assigned/used by the record page.
 
+## Operational Sequence
+
+Use this sequence when editing a layout for a quick action:
+
+1. List layouts and identify the exact `fullName`.
+2. Retrieve that exact layout full name.
+3. Edit only the retrieved file.
+4. Deploy only the retrieved layout file.
+5. Verify in the UI that the action appears where expected.
+
+Do not create a new layout file from a guessed filename. Do not rerun the same
+layout list/retrieve command unless the previous output was incomplete or the
+target full name changed.
+
 ## Symptoms
 
 ### Error
