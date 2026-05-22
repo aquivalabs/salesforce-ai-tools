@@ -4,10 +4,9 @@ run-name: "Ticket #${{ github.event.issue.number || github.event.pull_request.nu
 
 # Mention-driven AI workflow. Fires when an Aquiva collaborator (or higher)
 # writes "@butler" in an issue body, issue comment, PR review, or PR review
-# comment. The agent reads the full thread itself and decides what to do —
-# work the ticket, ask for clarification, propose a split, or refuse. There
-# is no label state machine; every fire is independent and re-reads the
-# conversation from scratch.
+# comment. The first pass posts a plan and waits. Follow-up human comments on a
+# pending plan also wake the agent so it can read the answer naturally and decide
+# whether the current plan is approved, corrected, ambiguous, or rejected.
 #
 # Cost protection: a cheap gate job verifies the triggering user has write,
 # maintain, or admin permission before the Claude-backed triage job runs.
@@ -53,26 +52,38 @@ jobs:
           REVIEW_BODY: ${{ github.event.review.body }}
           REVIEW_USER: ${{ github.event.review.user.login }}
           REVIEW_USER_TYPE: ${{ github.event.review.user.type }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           BODY=""
           ACTOR=""
           ACTOR_TYPE=""
+          NUMBER=""
 
           case "$EVENT_NAME" in
             issues)
               BODY="$ISSUE_BODY"
               ACTOR="$ISSUE_USER"
               ACTOR_TYPE="$ISSUE_USER_TYPE"
+              NUMBER="$ISSUE_NUMBER"
               ;;
-            issue_comment|pull_request_review_comment)
+            issue_comment)
               BODY="$COMMENT_BODY"
               ACTOR="$COMMENT_USER"
               ACTOR_TYPE="$COMMENT_USER_TYPE"
+              NUMBER="$ISSUE_NUMBER"
+              ;;
+            pull_request_review_comment)
+              BODY="$COMMENT_BODY"
+              ACTOR="$COMMENT_USER"
+              ACTOR_TYPE="$COMMENT_USER_TYPE"
+              NUMBER="$PR_NUMBER"
               ;;
             pull_request_review)
               BODY="$REVIEW_BODY"
               ACTOR="$REVIEW_USER"
               ACTOR_TYPE="$REVIEW_USER_TYPE"
+              NUMBER="$PR_NUMBER"
               ;;
           esac
 
@@ -82,17 +93,26 @@ jobs:
             exit 0
           fi
 
-          if [[ "$BODY" != *"@butler"* ]]; then
-            echo "proceed=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::No @butler mention in triggering text."
-            exit 0
-          fi
-
           PERMISSION=$(gh api "/repos/$REPO/collaborators/$ACTOR/permission" --jq .permission 2>/dev/null || echo "none")
           case "$PERMISSION" in
             admin|maintain|write)
-              echo "proceed=true" >> "$GITHUB_OUTPUT"
-              echo "::notice::Accepted @butler trigger from $ACTOR with $PERMISSION permission."
+              if [[ "$BODY" == *"@butler"* ]]; then
+                echo "proceed=true" >> "$GITHUB_OUTPUT"
+                echo "::notice::Accepted @butler trigger from $ACTOR with $PERMISSION permission."
+                exit 0
+              fi
+
+              if [ -n "$NUMBER" ] && [ "$EVENT_NAME" != "issues" ]; then
+                LAST_BOT=$(gh api "/repos/$REPO/issues/$NUMBER/comments" --jq 'map(select(.user.type == "Bot")) | last.body // ""' 2>/dev/null || true)
+                if echo "$LAST_BOT" | grep -q 'butler:plan status=pending'; then
+                  echo "proceed=true" >> "$GITHUB_OUTPUT"
+                  echo "::notice::Accepted follow-up comment from $ACTOR on pending Butler plan."
+                  exit 0
+                fi
+              fi
+
+              echo "proceed=false" >> "$GITHUB_OUTPUT"
+              echo "::notice::No @butler mention and no pending Butler plan."
               ;;
             *)
               echo "proceed=false" >> "$GITHUB_OUTPUT"
@@ -100,10 +120,10 @@ jobs:
               ;;
           esac
 
-  # Cheap first pass: read the thread, decide whether to proceed. Posts
-  # whatever comment the agent thinks is appropriate (plan, clarifying
-  # question, split proposal, refusal). Outputs proceed=true only when the
-  # agent has committed to doing the work in the same run.
+  # Cheap first pass: read the thread, post a plan, and wait for human approval.
+  # Follow-up human comments on a pending plan also come through this job. The
+  # execute job only starts when the agent determines that the latest human
+  # response clearly approves the current plan.
   triage:
     name: triage
     needs: gate
@@ -182,20 +202,63 @@ jobs:
           prompt: |
             Follow the `salesforce-ai-tools:sf-ticket-to-pr` plugin skill for instructions.
 
-            You were summoned by an @butler mention on ${{ steps.context.outputs.kind }} #${{ steps.context.outputs.number }} of ${{ github.repository }}.
+            You were summoned on ${{ steps.context.outputs.kind }} #${{ steps.context.outputs.number }} of ${{ github.repository }} by either an @butler mention or a human reply to a pending Butler plan.
 
             **Before anything else, run this command and read the full output:**
 
                 gh ${{ steps.context.outputs.kind == 'pr' && 'pr' || 'issue' }} view ${{ steps.context.outputs.number }} --repo ${{ github.repository }} --comments
 
-            The @butler mention that triggered this run is likely a short comment
-            like "@butler" or "@butler retry" — that is NOT the task. The actual
-            task is in the **issue body** (the first block of text in the output
-            above, before any comments). Do not confuse a triggering comment with
-            the issue description.
+            If an @butler mention triggered this run, it may be a short comment
+            like "@butler" or "@butler retry" — that is NOT necessarily the task.
+            The actual task is usually in the **issue body** (the first block of
+            text in the output above, before any comments). If this run was
+            triggered by a human reply to a pending Butler plan, interpret that
+            latest human reply as approval, correction, rejection, or ambiguity
+            relative to the pending plan. Do not confuse a triggering comment
+            with the issue description.
 
-            Execute ONLY the triage decision — based on what you read above, pick
-            one of: take it, ask for clarification, propose a split, or refuse.
+            Execute ONLY the approval-aware triage decision. Do not code, deploy,
+            provision Salesforce, or verify UI in this job.
+
+            Read the full thread and find the latest Butler plan comment, if
+            any. Butler plan comments contain this hidden marker:
+
+                <!-- butler:plan status=pending -->
+
+            Then apply this policy:
+
+            1. If there is no pending Butler plan for the current ask, post a
+               concrete implementation plan and stop. The plan must name the
+               likely files/metadata to touch, tests to run, and UI evidence if
+               relevant. End the comment with:
+
+                   <!-- butler:plan status=pending -->
+
+               Do NOT include an execute marker on the same run that creates or
+               materially revises a plan.
+
+            2. If there is a pending Butler plan and the latest human reply after
+               that plan clearly approves it, post a brief acknowledgement and
+               end the comment with:
+
+                   <!-- butler:execute -->
+
+               Do not restate the whole plan unless needed.
+
+            3. If the latest human reply corrects or changes the approach, post
+               a revised concrete plan and stop. End it with:
+
+                   <!-- butler:plan status=pending -->
+
+            4. If the latest human reply is ambiguous, asks a question, or does
+               not clearly approve the current plan, answer or ask one concise
+               clarifying question and stop. If the existing plan should remain
+               pending, include:
+
+                   <!-- butler:plan status=pending -->
+
+            5. If the request should be split or refused, post that decision and
+               stop. Do not include an execute marker.
 
             **You MUST post your decision as a real GitHub comment by running
             the shell command below.** Emitting the comment text in your
@@ -207,26 +270,9 @@ jobs:
                 EOF
                 gh ${{ steps.context.outputs.kind == 'pr' && 'pr' || 'issue' }} comment ${{ steps.context.outputs.number }} --repo ${{ github.repository }} --body-file /tmp/butler-reply.md
 
-            If — and only if — you are taking the work in this run, end the
-            file content with a single trailing line containing exactly:
-
-                <!-- butler:proceed -->
-
-            That HTML-comment marker is how the execute job decides to fire.
-            Do not include it for clarifications, splits, or refusals.
-
-            **Retry shortcut.** If you are proceeding AND your plan is the
-            same as the most recent prior triage comment of yours on this
-            thread (i.e. the human just re-pinged @butler to retry without
-            changing the ask), skip the summary — write the comment body as
-            just the single line `<!-- butler:proceed -->`. The mention
-            already said what's wanted; don't echo it back as "Retrying with
-            the same plan." Only write a real summary when the plan is new
-            or has materially changed.
-
             STOP after posting the comment — there is no Salesforce CLI or
-            scratch org available here; the execute job runs next and depends
-            on whether you set the proceed marker.
+            scratch org available here; the execute job runs next only if you
+            set the `<!-- butler:execute -->` marker after clear human approval.
 
             Tone: strong opinions, no "Great question!" or "I'd be happy to
             help!", brevity mandatory, no emojis, call things out if the
@@ -237,22 +283,24 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
-      # Detect the "proceed" marker by scanning the last bot comment posted on
-      # the issue or PR. The marker is an HTML comment so it renders invisibly
-      # in GitHub but is trivially greppable here.
+      # Detect the execute marker by scanning the last bot comment posted on
+      # the issue or PR. Plan and execute markers are HTML comments so they
+      # render invisibly in GitHub but are trivially greppable here.
       - name: Determine outcome
         id: outcome
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NUMBER: ${{ steps.context.outputs.number }}
         run: |
-          LAST=$(gh api "/repos/${{ github.repository }}/issues/$NUMBER/comments" --jq 'map(select(.user.type == "Bot")) | last.body')
-          if echo "$LAST" | grep -q 'butler:proceed'; then
-            echo "::notice::Triage outcome: proceed — execute job will run."
+          COMMENTS=$(gh api "/repos/${{ github.repository }}/issues/$NUMBER/comments")
+          LAST=$(echo "$COMMENTS" | jq -r 'map(select(.user.type == "Bot")) | last.body // ""')
+          PLAN=$(echo "$COMMENTS" | jq -r 'map(select(.user.type == "Bot" and (.body | contains("butler:plan status=pending")))) | last.body // ""')
+          if echo "$LAST" | grep -q 'butler:execute'; then
+            echo "::notice::Triage outcome: approved — execute job will run."
             echo "proceed=true" >> $GITHUB_OUTPUT
-            { echo "plan<<EOF_PLAN"; echo "$LAST"; echo "EOF_PLAN"; } >> $GITHUB_OUTPUT
+            { echo "plan<<EOF_PLAN"; echo "$PLAN"; echo "EOF_PLAN"; } >> $GITHUB_OUTPUT
           else
-            echo "::notice::Triage outcome: stop — execute job will be skipped."
+            echo "::notice::Triage outcome: waiting — execute job will be skipped."
             echo "proceed=false" >> $GITHUB_OUTPUT
           fi
 
@@ -376,7 +424,7 @@ jobs:
           prompt: |
             Follow the `salesforce-ai-tools:sf-ticket-to-pr` plugin skill for instructions.
 
-            You were summoned by an @butler mention on ${{ env.KIND }} #${{ env.NUMBER }}. Triage has already decided you are taking the work in this run; the proceed marker is set. Skip the triage decision and go straight to coding, verifying, and shipping.
+            You were summoned on ${{ env.KIND }} #${{ env.NUMBER }}. Triage has already determined that a human clearly approved the current Butler plan. Skip triage and go straight to coding, verifying, and shipping.
 
             Your earlier triage comment (the plan you committed to):
 

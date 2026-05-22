@@ -1,17 +1,22 @@
 ---
 name: sf-ticket-to-pr
-description: Respond to @butler mentions on GitHub issues and PRs — read the thread, decide, act
+description: Respond to @butler mentions on GitHub issues and PRs — read the thread, propose a plan, wait for approval, then act
 ---
 
 # SF Ticket to PR
 
-You were summoned by an `@butler` mention on a GitHub issue or PR. Read the
-full thread first, then act. Every run is independent — there are no
-acknowledge/reject/needs-split labels, no state to carry. The only label still
-in use is `ai-involved`, which you apply to PRs you open so humans can see at
-a glance what came from you.
+You were summoned by an `@butler` mention or by a human reply to a pending
+Butler plan on a GitHub issue or PR. Read the full thread first. New work is
+planned first and executed only after a later human reply clearly approves the
+current plan. There are no approval labels; the only label still in use is
+`ai-involved`, which you apply to PRs you open so humans can see at a glance
+what came from you.
 
-You are done when **either**:
+You are done when **one** of these is true:
+- You posted a concrete plan with `<!-- butler:plan status=pending -->` and are
+  waiting for human approval,
+- You determined that the latest human reply clearly approved the current plan,
+  posted `<!-- butler:execute -->`, and the execute job will take over,
 - A new commit lands on a branch with an open PR (and `gh pr create` ran if
   the PR didn't exist before), **or**
 - A clear stop-reason has been posted as a comment explaining why you didn't.
@@ -112,22 +117,29 @@ done**. Treat the latest maintainer mention as a fresh ask: re-implement
 from scratch on a new branch off `main`, open a new PR. Do not waste a
 turn trying to update a deleted PR.
 
-Then pick one of four moves and post a comment that says which. **Posting
-means actually calling `gh issue comment` / `gh pr comment`** — text in your
-response is not visible to humans or to the execute job. Always write the
-comment body to a file and pass `--body-file`:
+Then pick one move and post a comment that says which. **Posting means actually
+calling `gh issue comment` / `gh pr comment`** — text in your response is not
+visible to humans or to the execute job. Always write the comment body to a file
+and pass `--body-file`:
 
     cat > /tmp/butler-reply.md <<'EOF'
-    <your comment body, including the proceed marker on the last line if taking it>
+    <your comment body, including the hidden marker required by the selected move>
     EOF
     gh issue comment <N> --repo <owner/repo> --body-file /tmp/butler-reply.md   # or `gh pr comment`
 
-### Take it
+### Propose a plan
 
-The request is clear and small enough to land in one PR. Comment with a
-short, concrete plan — name the classes you will touch, the metadata you
-will add, the tests you will write. End the comment with this exact trailing
-line (HTML comment, invisible in GitHub UI) so the execute job fires:
+The request is clear enough to plan and small enough to land in one PR. Comment
+with a short, concrete plan — name the classes you expect to touch, the metadata
+you expect to add or retrieve, the tests you will write, and the verification
+you will run.
+
+End the comment with this exact trailing line:
+
+    <!-- butler:plan status=pending -->
+
+Stop after posting. Do not include an execute marker in the same run that first
+creates or materially revises a plan. Human review is the design checkpoint.
 
 **Verification plan (pick what fits, not all of them).** Apex / triggers
 touched → Apex tests. Agentforce metadata touched (`genAi*`, `bots/`) → a
@@ -139,9 +151,9 @@ evidence to your plan comment — screenshot for most bugs, **video** if the
 bug involves an interactive conversational UI (same rule as verification). Apex-only refactors don't need UI
 checks. Pick the cheapest verification that proves the requirement.
 
-**The plan is what YOU, the agent, will verify — not a checklist for the
-human.** The PR must never contain "How to verify" instructions telling the
-reviewer to log in, activate pages, create records, click around. You do
+**The plan is what YOU, the agent, will verify after approval — not a checklist
+for the human.** The PR must never contain "How to verify" instructions telling
+the reviewer to log in, activate pages, create records, click around. You do
 all of that yourself in Step 3 and attach the evidence (screenshots, SOQL
 output, test results). The reviewer's only verification is glancing at the
 evidence and optionally clicking the scratch-org URL.
@@ -152,9 +164,36 @@ assigned to the appropriate app/profile. A non-activated page is invisible
 to users, so shipping one is the same as shipping nothing. Verification
 without activation is impossible because the new page is never rendered.
 
-    <!-- butler:proceed -->
+### Human approved the current plan
 
-Then continue to Step 2.
+If the latest human reply after the most recent pending Butler plan clearly
+approves that plan, post a brief acknowledgement and end it with this exact
+trailing line:
+
+    <!-- butler:execute -->
+
+Stop after posting. The workflow will start the execute job with the latest
+pending plan as context. Approval can be natural language; do not require humans
+to use keywords.
+
+### Human corrected the plan
+
+If the latest human reply changes the implementation approach, scope, or
+verification expectations, post a revised concrete plan and end it with:
+
+    <!-- butler:plan status=pending -->
+
+Stop. The revised plan needs human approval before execution.
+
+### Human response is ambiguous
+
+If the latest human reply asks a question, discusses tradeoffs, or does not
+clearly approve the current plan, answer briefly or ask one concise clarifying
+question. If the current plan should remain pending, include:
+
+    <!-- butler:plan status=pending -->
+
+Do not execute.
 
 **Sizing.** Use judgment, not a checklist. A request that fits one PR usually
 touches 1–3 Apex classes plus their tests, optionally one LWC, optionally a
@@ -175,14 +214,14 @@ demanding that a human pre-create the field defeats it.
 
 The request is unclear, ambiguous, or contradicts something already in the
 codebase or thread. Post a comment naming exactly what you need to decide
-before you can act — one or two crisp questions, not a list of ten. **Do not**
-include the proceed marker. Stop.
+before you can plan — one or two crisp questions, not a list of ten. **Do not**
+include the execute marker. Stop.
 
 ### Propose a split
 
 The work is implementable but bigger than one PR. Comment with a proposed
 split — each sub-story sized to ~1 class + tests + the metadata it needs.
-Name what should land first and why. **Do not** include the proceed marker.
+Name what should land first and why. **Do not** include the execute marker.
 Stop. A human will open the sub-issues and mention you on them.
 
 ### Refuse
@@ -193,7 +232,7 @@ A small number of changes genuinely shouldn't go through the pipeline:
 - Feedback that contradicts the original issue without explanation — ask for clarification instead of guessing.
 - Anything listed in the consuming repo's `CLAUDE.md` refuse-list addendum.
 
-Comment with the reason in one sentence. **Do not** include the proceed
+Comment with the reason in one sentence. **Do not** include the execute
 marker. Stop.
 
 ## Step 2 — Code
@@ -396,7 +435,7 @@ without changing the outcome.
 
 - Skipping Step 1 — touching code before reading the thread and posting a comment that names what you're about to do.
 - Acknowledging a request without naming concrete classes / metadata in the plan ("I'll add the action" is not a plan).
-- Including the `<!-- butler:proceed -->` marker on a comment that is asking for clarification, proposing a split, or refusing.
+- Including the `<!-- butler:execute -->` marker before a human has clearly approved the current pending plan.
 - Refusing because a custom field, queue, or Flow doesn't exist yet, when the issue is asking you to create it.
 - Opening a second PR when one already exists for the branch.
 - Investigating PMD findings on lines you did not touch.

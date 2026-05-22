@@ -20,14 +20,14 @@ Claude Code loads the `salesforce-ai-tools` plugin locally and inside GitHub Act
 
 ### Skills
 
-| Skill | What it does | Contributed by |
-| ----- | ------------ | -------------- |
-| **[sf-ticket-to-pr](plugins/salesforce-ai-tools/skills/sf-ticket-to-pr/SKILL.md)** | The core pipeline skill. Reads a GitHub issue or PR thread, decides whether to take it, clarify, split into sub-stories, or refuse — then codes, deploys to a scratch org, runs tests and PMD, captures Playwright UI evidence, opens a PR, and posts an auto-login org URL. It also keeps a small versioned Salesforce metadata failure memory so repeated deploy mistakes become searchable local knowledge. | [@rsoesemann](https://github.com/rsoesemann) |
-| **[agentforce](plugins/salesforce-ai-tools/skills/agentforce/SKILL.md)** | Tests and deploys Agentforce agents and prompt templates — multi-turn demo story, prompt template regression, Testing Center migration, and the manual fixups Salesforce CLI doesn't handle when iterating on Agentforce metadata. | [@anmolgkv](https://github.com/anmolgkv) |
-| **[agentforce-deploy](plugins/salesforce-ai-tools/skills/agentforce-deploy/SKILL.md)** | Encodes the manual fixups Salesforce CLI does not handle when deploying Agentforce metadata — schema.json scaffolding for genAiFunctions, prompt-template `versionIdentifier` bumps, schema-only-edit detection nudge, planner bundle topic refresh, and the deactivate/deploy/reactivate flow when an active agent blocks a deploy. | [@anmolgkv](https://github.com/anmolgkv) · [#12](https://github.com/aquivalabs/aquiva-skills/pull/12) |
-| **[playwright-sf](plugins/salesforce-ai-tools/skills/playwright-sf/SKILL.md)** | Verifies Salesforce Lightning UI flows with Playwright CLI/scripts first, using MCP only for fallback selector discovery. Captures screenshots and frame-inspected video evidence for user-visible changes. | [@rsoesemann](https://github.com/rsoesemann) |
-| **[sf-code-analyzer](plugins/salesforce-ai-tools/skills/sf-code-analyzer/SKILL.md)** | Runs Salesforce Code Analyzer on changed Apex, Flow, or metadata files with smart rule selection. Detects managed packages and applies AppExchange security rules when relevant, otherwise runs opinionated clean-code rules. Invoked automatically by sf-ticket-to-pr after every code change. | [@rsoesemann](https://github.com/rsoesemann) |
-| **[markdown-web](plugins/salesforce-ai-tools/skills/markdown-web/SKILL.md)** | Fetches JS-rendered webpages via headless Chromium and returns clean markdown. Cracks shadow DOM and cookie-consent walls that defeat `WebFetch` — especially useful for help.salesforce.com and developer.salesforce.com docs. Per-domain rules live in `sites.json`. | [@aidan-harding](https://github.com/aidan-harding) · [#4](https://github.com/aquivalabs/aquiva-skills/pull/4) |
+| Skill | What it does |
+| ----- | ------------ |
+| **[sf-ticket-to-pr](plugins/salesforce-ai-tools/skills/sf-ticket-to-pr/SKILL.md)** | The core pipeline skill. Reads a GitHub issue or PR thread, proposes a concrete plan, waits for human approval, then codes, deploys to a scratch org, runs tests and PMD, captures Playwright UI evidence, opens a PR, and posts an auto-login org URL. It also keeps a small versioned Salesforce metadata failure memory so repeated deploy mistakes become searchable local knowledge. |
+| **[agentforce](plugins/salesforce-ai-tools/skills/agentforce/SKILL.md)** | Tests and deploys Agentforce agents and prompt templates — multi-turn demo story, prompt template regression, Testing Center migration, and the manual fixups Salesforce CLI doesn't handle when iterating on Agentforce metadata. |
+| **[agentforce-deploy](plugins/salesforce-ai-tools/skills/agentforce-deploy/SKILL.md)** | Encodes the manual fixups Salesforce CLI does not handle when deploying Agentforce metadata — schema.json scaffolding for genAiFunctions, prompt-template `versionIdentifier` bumps, schema-only-edit detection nudge, planner bundle topic refresh, and the deactivate/deploy/reactivate flow when an active agent blocks a deploy. |
+| **[playwright-sf](plugins/salesforce-ai-tools/skills/playwright-sf/SKILL.md)** | Verifies Salesforce Lightning UI flows with Playwright CLI/scripts first, using MCP only for fallback selector discovery. Captures screenshots and frame-inspected video evidence for user-visible changes. |
+| **[sf-code-analyzer](plugins/salesforce-ai-tools/skills/sf-code-analyzer/SKILL.md)** | Runs Salesforce Code Analyzer on changed Apex, Flow, or metadata files with smart rule selection. Detects managed packages and applies AppExchange security rules when relevant, otherwise runs opinionated clean-code rules. Invoked automatically by sf-ticket-to-pr after every code change. |
+| **[markdown-web](plugins/salesforce-ai-tools/skills/markdown-web/SKILL.md)** | Fetches JS-rendered webpages via headless Chromium and returns clean markdown. Cracks shadow DOM and cookie-consent walls that defeat `WebFetch` — especially useful for help.salesforce.com and developer.salesforce.com docs. Per-domain rules live in `sites.json`. |
 
 ### Install
 
@@ -82,13 +82,16 @@ sequenceDiagram
     participant PR
 
     Dev->>GitHub: @butler on an issue or PR
-    GitHub->>Butler: gate + triage
-    alt needs human input
-        Butler->>Dev: clarify, split, or refuse
-    else accepted
+    GitHub->>Butler: gate + plan
+    Butler->>Dev: proposed implementation plan
+    Dev->>GitHub: natural-language approval or correction
+    GitHub->>Butler: gate + interpret reply
+    alt approved
         Butler->>Org: restore or create scratch org
         Butler->>PR: implement, verify, open or update PR
         Butler->>Dev: summary, org URL, evidence, cost
+    else corrected or unclear
+        Butler->>Dev: revised plan or one clarifying question
     end
     Dev->>GitHub: merge or close
     GitHub->>Org: cleanup
@@ -98,13 +101,13 @@ sequenceDiagram
 
 #### Triage
 
-The `triage` job in [sf-ticket-to-pr.yml](.github/workflows/sf-ticket-to-pr.yml) is the cheap decision point. It installs the plugin with [scripts/install-sf-ai-tools.sh](scripts/install-sf-ai-tools.sh), resolves whether the event belongs to an issue or PR, reads the full thread, and asks the `salesforce-ai-tools:sf-ticket-to-pr` skill to choose one outcome: take it, clarify, split, or refuse.
+The `triage` job in [sf-ticket-to-pr.yml](.github/workflows/sf-ticket-to-pr.yml) is the cheap decision point. It installs the plugin with [scripts/install-sf-ai-tools.sh](scripts/install-sf-ai-tools.sh), resolves whether the event belongs to an issue or PR, reads the full thread, and asks the `salesforce-ai-tools:sf-ticket-to-pr` skill to propose a plan, revise a pending plan, ask for clarification, split, refuse, or acknowledge that the latest human reply approved the current plan.
 
-Only a take-it decision writes the hidden proceed marker that starts execution. This keeps cost under control: unclear or out-of-scope work stops before Salesforce CLI, Playwright, or scratch-org provisioning. The triage job still reports its Claude cost through [.github/scripts/report-ai-cost.sh](.github/scripts/report-ai-cost.sh), so even stopped runs remain visible.
+New work does not execute immediately. Butler posts a plan with a hidden pending marker and waits. A later human comment can approve or correct the plan in natural language; no approval labels or magic human keywords are required. Only after Butler interprets the latest human reply as clear approval does it write the hidden execute marker that starts the expensive job. This keeps architecture decisions human-reviewed before Salesforce CLI, Playwright, or scratch-org provisioning.
 
 #### Execute
 
-The `execute` job in [sf-ticket-to-pr.yml](.github/workflows/sf-ticket-to-pr.yml) runs only after triage accepts the work. It checks out the target branch, installs Salesforce CLI and Playwright, authenticates the DevHub, restores the cached scratch-org auth URL, and calls [scripts/create-scratch-org.sh](scripts/create-scratch-org.sh) to reuse or create the org.
+The `execute` job in [sf-ticket-to-pr.yml](.github/workflows/sf-ticket-to-pr.yml) runs only after a human-approved plan. It checks out the target branch, installs Salesforce CLI and Playwright, authenticates the DevHub, restores the cached scratch-org auth URL, and calls [scripts/create-scratch-org.sh](scripts/create-scratch-org.sh) to reuse or create the org.
 
 The scratch org is keyed by issue number, not PR number. Follow-up runs on a PR reuse the same org when the PR body links back to the issue with `Closes #N`, `Fixes #N`, or `Resolves #N`.
 
