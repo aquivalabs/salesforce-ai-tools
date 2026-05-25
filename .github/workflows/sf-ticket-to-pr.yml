@@ -436,6 +436,7 @@ jobs:
 
       - name: Do the work
         uses: anthropics/claude-code-action@v1
+        timeout-minutes: 15
         id: claude
         with:
           prompt: |
@@ -465,6 +466,49 @@ jobs:
           ISSUE_NUMBER: ${{ needs.triage.outputs.scratch_key }}
           EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
         run: .sf-ai-tools/.github/scripts/report-ai-cost.sh || echo "::warning::cost report failed"
+
+      - name: Extract metadata learnings
+        if: always()
+        uses: anthropics/claude-code-action@v1
+        continue-on-error: true
+        with:
+          prompt: |
+            You are the post-run learning extractor for the Salesforce Butler pipeline.
+
+            Do not implement the ticket. Do not deploy. Do not open a PR. Only inspect
+            the completed/failed/canceled run state and preserve Salesforce metadata
+            learnings in the existing local knowledge format.
+
+            Read:
+            - Claude execution transcript, if present: `${{ steps.claude.outputs.execution_file }}`
+            - `plugins/salesforce-ai-tools/skills/sf-ticket-to-pr/SKILL.md`
+            - `plugins/salesforce-ai-tools/skills/sf-ticket-to-pr/knowledge/salesforce-metadata/INDEX.md`
+            - routed knowledge files under `plugins/salesforce-ai-tools/skills/sf-ticket-to-pr/knowledge/salesforce-metadata/`
+            - `plugins/salesforce-ai-tools/skills/sf-ticket-to-pr/knowledge/log.md`
+
+            If the run contains no Salesforce metadata deploy/debug/research learning,
+            run `echo "No metadata learning found."` and stop.
+
+            If the run contains a Salesforce metadata learning, update the matching
+            knowledge file, or create the smallest matching file if none exists. Use
+            the existing entry shape exactly: Error, Likely Cause, Fix, Validation,
+            Source, Trust, Confirmed. `Trust` must be `AI-observed, not human-reviewed`.
+            `Validation` must truthfully describe what happened in this run, including
+            failed, canceled, or incomplete outcomes. Also append one line to
+            `knowledge/log.md`.
+
+            If you changed knowledge files, commit and push only those knowledge-file
+            changes to the current branch with message:
+
+                Record Salesforce metadata learning from run ${{ github.run_id }}
+
+            Then post one concise GitHub comment on ${{ env.KIND }} #${{ env.NUMBER }}
+            saying what learning was recorded. If no learning was found, do not comment.
+          claude_args: "--max-turns 20 --model claude-sonnet-4-6 --permission-mode bypassPermissions"
+          show_full_output: "true"
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Notify on execute failure
         if: failure()

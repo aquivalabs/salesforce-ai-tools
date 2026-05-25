@@ -51,9 +51,10 @@ metadata type you will touch. The knowledge files are retrieval-oriented:
 symptoms, likely causes, fixes, and validation commands. Do not skim them as
 background documentation.
 
-When you discover a new metadata quirk through external research or live-org
-retrieval and validate the fix with a successful deploy, update the matching
-knowledge file in the same PR. Keep entries compact and operational.
+When you discover a new metadata quirk through external research, live-org
+retrieval, or repeated deploy/debug attempts, update the matching knowledge file
+in the same PR. Keep entries compact and operational. The `Validation` section
+must say what actually happened, including failed, canceled, or incomplete runs.
 
 Every learning must include a `Trust` marker. Agents may only create entries as
 `AI-observed, not human-reviewed`. Only a human may change trust to
@@ -72,7 +73,7 @@ One short explanation.
 Concrete metadata or source-path change.
 
 ### Validation
-`command that proved it`
+`command or run outcome that showed it`
 
 ### Source
 GitHub Actions run, live-org retrieve, official docs, GitHub example, or
@@ -314,8 +315,9 @@ beat public examples; public examples beat forum interpretation. Public GitHub
 examples are for shape discovery only. Validate by deploy or retrieve before
 recording a rule.
 
-After a validated fix that required research or retrieval, update the matching
-knowledge file with the exact symptom, likely cause, fix, validation command,
+After a fix, failure, cancellation, or repeated metadata loop that required
+research or retrieval, update the matching knowledge file with the exact symptom,
+likely cause or observed hypothesis, fix or attempted fix, validation outcome,
 source, trust marker, and date.
 
 Run tests **in the foreground** with a Bash timeout long enough to cover the full Apex run (the CLI `--wait 30` is 30 minutes — the Bash timeout must match):
