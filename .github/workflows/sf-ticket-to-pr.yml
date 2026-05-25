@@ -467,10 +467,32 @@ jobs:
           EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
         run: .sf-ai-tools/.github/scripts/report-ai-cost.sh || echo "::warning::cost report failed"
 
+      - name: Prepare metadata learning context
+        if: always()
+        env:
+          EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          {
+            echo "Run: $RUN_URL"
+            echo "Issue/PR: $KIND #$NUMBER"
+            echo "Scratch org: $SCRATCH_ORG_ALIAS"
+            echo "Claude execution file: ${EXECUTION_FILE:-}"
+            echo
+            echo "Filtered transcript lines:"
+            if [ -n "${EXECUTION_FILE:-}" ] && [ -f "$EXECUTION_FILE" ]; then
+              jq -r '.. | strings?' "$EXECUTION_FILE" \
+                | grep -Ei 'salesforce|metadata|deploy|retrieve|flexipage|layout|quick.?action|object-meta|actionOverrides|error|failed|failure|exception|timeout|cancel|websearch|webfetch' \
+                | tail -n 500 || true
+            else
+              echo "No Claude execution file found."
+            fi
+          } > /tmp/butler-metadata-learning-context.txt
+
       - name: Extract metadata learnings
         if: always()
         uses: anthropics/claude-code-action@v1
-        continue-on-error: true
+        timeout-minutes: 5
         with:
           prompt: |
             You are the post-run learning extractor for the Salesforce Butler pipeline.
@@ -480,7 +502,7 @@ jobs:
             learnings in the existing local knowledge format.
 
             Read:
-            - Claude execution transcript, if present: `${{ steps.claude.outputs.execution_file }}`
+            - Filtered run context: `/tmp/butler-metadata-learning-context.txt`
             - `plugins/salesforce-ai-tools/skills/sf-ticket-to-pr/SKILL.md`
             - `plugins/salesforce-ai-tools/skills/sf-ticket-to-pr/knowledge/salesforce-metadata/INDEX.md`
             - routed knowledge files under `plugins/salesforce-ai-tools/skills/sf-ticket-to-pr/knowledge/salesforce-metadata/`
@@ -504,7 +526,7 @@ jobs:
 
             Then post one concise GitHub comment on ${{ env.KIND }} #${{ env.NUMBER }}
             saying what learning was recorded. If no learning was found, do not comment.
-          claude_args: "--max-turns 20 --model claude-sonnet-4-6 --permission-mode bypassPermissions"
+          claude_args: "--max-turns 40 --model claude-sonnet-4-6 --permission-mode bypassPermissions"
           show_full_output: "true"
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
