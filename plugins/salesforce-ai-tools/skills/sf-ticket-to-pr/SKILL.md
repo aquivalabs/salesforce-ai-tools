@@ -258,6 +258,11 @@ actions, Flows, Permission Sets, and Agentforce metadata. If a similar artifact
 exists in the scratch org, retrieve it and adapt that shape before authoring from
 memory.
 
+For FlexiPage RecordPages, follow the `flexipages.md` recipe: search or retrieve
+a real RecordPage source shape, adapt only the needed region/component, deploy
+the smallest FlexiPage file, retrieve the org-normalized XML, activate the page
+when it is newly created, and verify the activated page in the UI.
+
 ### Salesforce CLI command discipline
 
 Run Salesforce CLI metadata commands in the foreground with a Bash timeout. Do

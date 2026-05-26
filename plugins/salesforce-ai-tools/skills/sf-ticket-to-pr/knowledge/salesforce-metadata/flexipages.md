@@ -1,76 +1,114 @@
 # FlexiPages
 
-## Known Rules
+## Recipe: LWC on a Lightning Record Page
 
-- Never invent a FlexiPage template name from memory. The name must be confirmed
-  via live-org retrieval or App Builder UI before deployment.
-- `FlexiPageTemplate` is not a listable Metadata API type and is not queryable as
-  a Tooling API sObject — both will return `INVALID_TYPE`.
-- The correct way to discover a template name is: create the page in App Builder,
-  save it, then read `Metadata.template.name` via the Tooling API.
-- Standard template name for an Account Record Page (any `RecordPage` sObject
-  using the default "Header and Right Sidebar" layout): `flexipage:recordHomeTemplateDesktop`.
-- Metadata API source format uses colon-separated namespace, e.g.
-  `flexipage:recordHomeTemplateDesktop`, not underscore or wrong-namespace variants.
+Use this when a story asks for an LWC on an Account, Contact, Case, Opportunity,
+or other Lightning record page.
 
-## Template Discovery Sequence
+1. Build and deploy dependencies first.
+   - Create Apex/classes first when the LWC calls Apex.
+   - Create the LWC second.
+   - The LWC metadata must expose `lightning__RecordPage`.
+   - Deploy Apex/classes and the LWC before touching the FlexiPage.
+   - A FlexiPage deploy cannot validate a custom component that is not in the
+     org yet.
 
-When authoring a FlexiPage and the correct template name is unknown:
-
-1. Open App Builder in the scratch org and create a minimal page of the same type
-   and sObject.
-2. Save it (a name is required).
-3. Note the `id` from the URL (`0M0...`).
-4. Read back the template name:
+2. Get a real FlexiPage XML shape before editing.
+   - First try to retrieve the target page from the org:
+     `timeout 180 sf project retrieve start --metadata "FlexiPage:<Page_Api_Name>" --target-org "$SCRATCH_ORG_ALIAS"`
+   - If the exact page does not exist, retrieve another RecordPage for the same
+     template/object family or search public GitHub source by exact metadata
+     tokens. Do not use unrelated FlexiPage types such as Utility Bars.
+   - Do not guess structure from memory.
 
 ```bash
-export SCRATCH_ORG_ALIAS="pr-<N>"
-INSTANCE_URL=$(sf org display --target-org "$SCRATCH_ORG_ALIAS" --json | python3 -c "import json,sys; print(json.load(sys.stdin)['result']['instanceUrl'])")
-ACCESS_TOKEN=$(sf org display --target-org "$SCRATCH_ORG_ALIAS" --json | python3 -c "import json,sys; print(json.load(sys.stdin)['result']['accessToken'])")
-curl -s -H "Authorization: Bearer $ACCESS_TOKEN" \
-  "$INSTANCE_URL/services/data/v65.0/tooling/sobjects/FlexiPage/<ID>" \
-  | python3 -c "import json,sys; meta=json.load(sys.stdin).get('Metadata',{}); print(meta.get('template',{}).get('name','?'))"
+gh search code 'recordHomeTemplateDesktop' --limit 10
+gh search code 'flexipage:recordHomeTemplateDesktop' --limit 10
+gh search code '<type>RecordPage</type>' --limit 10
+gh search code '<sobjectType>Account</sobjectType>' --limit 10
+gh search code 'componentInstance itemInstances flexipage-meta.xml' --limit 10
 ```
 
-5. Use the returned name in your FlexiPage XML.
+   - Stop searching when you have a RecordPage with the same template family and
+     enough region/component shape to place the LWC. Public examples are
+     accelerators, not truth.
 
-## Symptoms
+3. Author the smallest valid FlexiPage.
+   - Set `<type>RecordPage</type>`.
+   - Set the correct `<sobjectType>...</sobjectType>`.
+   - Use the template from a retrieved page, App Builder, or a public example
+     that deploys in the current org.
+   - For a standard desktop record page with header and right sidebar, the known
+     template is `flexipage:recordHomeTemplateDesktop`.
+   - Add only the region/component XML needed for the story. Do not copy a whole
+     public page full of unrelated standard components.
+   - Do not add standard Salesforce components from memory. If a standard
+     component is required, copy its name/properties from real source.
 
-### Error
-`Template c:force_RecordLayout2Col doesn't exist.`
+4. Deploy in dependency order.
+   - Deploy Apex/classes first.
+   - Deploy the LWC second.
+   - Deploy the FlexiPage last.
+   - Deploy the smallest source path that can validate the change.
 
-### Likely Cause
-The `<name>` element inside `<template>` in the FlexiPage XML used
-`force_RecordLayout2Col` (underscore, no namespace). Salesforce prepends the
-default `c:` namespace to unrecognised names, producing `c:force_RecordLayout2Col`
-at deploy time, which then fails. The correct template name for a RecordPage with
-the "Header and Right Sidebar" layout is `flexipage:recordHomeTemplateDesktop`.
+5. If FlexiPage deploy fails, fix the exact XML shape error once.
+   - Do not switch metadata types.
+   - Do not invent a new template name.
+   - Search the exact error text and XML element on GitHub before editing again.
+   - Make one targeted XML change, then redeploy the same FlexiPage file.
+   - Trust the current org deploy error over copied examples.
+   - After a successful deploy, retrieve the FlexiPage back from the org and keep
+     the org-normalized XML.
 
-### Fix
-Replace the `<template><name>` value with the confirmed template name:
+6. Activate the page.
+   - If the story creates a new custom record page, activate it as org default or
+     the requested app/profile assignment.
+   - App Builder activation is acceptable when assignment metadata is unclear.
+   - Do not query invented activation metadata types.
+   - A deployed but inactive record page is not shipped.
 
-```xml
-<template>
-    <name>flexipage:recordHomeTemplateDesktop</name>
-</template>
-```
+7. Verify the visible user flow.
+   - Open a real record in Lightning.
+   - Confirm the LWC renders in the intended region.
+   - Exercise the UI action.
+   - Confirm the backend effect with UI or SOQL.
+   - For interactive input flows, record a Playwright video.
+   - Evidence from Setup or App Builder is not enough.
 
-Confirmed in run `26417341847` by creating a page in App Builder, saving it,
-then reading `Metadata.template.name` from the Tooling API, which returned
-`flexipage:recordHomeTemplateDesktop`.
+## Hard Rules
 
-### Validation
-Run `26417341847` confirmed the template name via Tooling API retrieval
-(`curl .../tooling/sobjects/FlexiPage/<id>`). The deploy with the corrected
-template was not attempted before the run hit `error_max_turns` — template name
-confirmed by retrieval only, not by a passing deployment.
+- Never hand-author FlexiPage XML from memory.
+- Never use a template name that has not been retrieved, found in a real source
+  file, or deploy-validated in the current org.
+- `FlexiPageTemplate` is not a listable Metadata API type and is not queryable as
+  a Tooling API sObject.
+- Do not rely on a deploy alone. FlexiPage work is done only after activation and
+  UI verification.
 
-### Source
-GitHub Actions run `26417341847`; live-org App Builder creation + Tooling API
-`Metadata.template.name` retrieval.
+## Common RecordPage Tokens
 
-### Trust
-AI-observed, not human-reviewed
+- `RecordPage` page type: `<type>RecordPage</type>`
+- Object binding: `<sobjectType>Account</sobjectType>`
+- Standard desktop header/right-sidebar template:
+  `flexipage:recordHomeTemplateDesktop`
+- Metadata source path:
+  `force-app/main/default/flexipages/<Page_Api_Name>.flexipage-meta.xml`
 
-### Confirmed
-2026-05-25
+## Common Deploy Failures
+
+### `Property 'componentInstances' not valid in version 65.0`
+
+The copied example uses an older or incompatible region shape. Search for current
+examples using `itemInstances` and `componentInstance`, then deploy again.
+
+### `Template c:<name> doesn't exist`
+
+The template name is missing the correct namespace or is not a valid template.
+Use a retrieved or deploy-validated template name. For the default desktop
+record page layout, use `flexipage:recordHomeTemplateDesktop`.
+
+### `The '<region>' region ... specifies mode 'APPEND' but a parent region enabling that mode doesn't exist`
+
+The region mode does not match the page/template relationship. Search examples
+for the same template and region. For a fresh minimal custom page, omit copied
+`<mode>` values unless the matching source shape proves they are needed.
