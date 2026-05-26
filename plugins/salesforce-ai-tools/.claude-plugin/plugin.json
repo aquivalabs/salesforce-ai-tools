@@ -1,5 +1,5 @@
 {
   "name": "salesforce-ai-tools",
-  "version": "2026.5.0",
+  "version": "2026.5.1",
   "description": "Salesforce AI development tools for Claude Code: ticket-to-PR automation, Agentforce workflows, Salesforce UI verification, code analysis, and markdown web fetching"
 }

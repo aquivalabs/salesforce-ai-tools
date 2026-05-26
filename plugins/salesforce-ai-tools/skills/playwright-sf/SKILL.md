@@ -196,8 +196,8 @@ node .verification/pr-<N>/record-video.mjs
 
 **Step 4 — inspect frames before committing or linking.** Extract frames from the final `.verification/pr-<N>/session.mp4`. A video file existing is not evidence; the content is evidence.
 
-    mkdir -p /tmp/pr-<N>-frames
-    ffmpeg -i .verification/pr-<N>/session.mp4 -vf "fps=1/2" /tmp/pr-<N>-frames/frame-%03d.png -y
+    plugins/salesforce-ai-tools/skills/playwright-sf/scripts/extract-video-frames.sh \
+      .verification/pr-<N>/session.mp4 /tmp/pr-<N>-frames
 
 Open at least the first, middle, and last frame with an image viewer or image-capable tool. If any frame shows login, Access Denied, Setup, a blank page, or the wrong record, the video is invalid. Re-record it. Do not link or commit it, and do not claim video verification in the PR.
 

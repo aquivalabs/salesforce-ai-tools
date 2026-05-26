@@ -1,4 +1,4 @@
-# salesforce-ai-tools [`v2026.5.0`](https://github.com/aquivalabs/salesforce-ai-tools/releases/tag/v2026.5.0)
+# salesforce-ai-tools [`v2026.5.1`](https://github.com/aquivalabs/salesforce-ai-tools/releases/tag/v2026.5.1)
 
 Reusable GitHub Actions workflows and a versioned Claude Code plugin for AI-assisted Salesforce development. Drop these into any Salesforce repo to get an AI agent that triages issues, opens pull requests, verifies UI changes, and more — all triggered by a simple `@butler` mention.
 
@@ -16,7 +16,11 @@ Reusable GitHub Actions workflows and a versioned Claude Code plugin for AI-assi
 
 ## Claude Plugin
 
-Claude Code loads the `salesforce-ai-tools` plugin locally and inside GitHub Actions. The plugin is versioned with this repository; release `v2026.5.0` contains plugin version `2026.5.0`.
+Claude Code loads the `salesforce-ai-tools` plugin locally and inside GitHub Actions. The plugin is versioned with this repository; release `v2026.5.1` contains plugin version `2026.5.1`.
+
+The source of truth for skills is `plugins/salesforce-ai-tools/skills/`. Local
+Claude or Codex folders such as `.claude/skills/` are install/runtime copies and
+must not contain repo-owned skill source.
 
 ### Skills
 
