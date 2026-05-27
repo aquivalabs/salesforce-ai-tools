@@ -134,3 +134,51 @@ record page layout, use `flexipage:recordHomeTemplateDesktop`.
 The region mode does not match the page/template relationship. Search examples
 for the same template and region. For a fresh minimal custom page, omit copied
 `<mode>` values unless the matching source shape proves they are needed.
+
+### `<mode>Replace</mode>` on a region but no `<parentFlexiPage>` declared
+
+### Error
+FlexiPage deploy fails when `<flexiPageRegions>` elements include `<mode>Replace</mode>` but the page declares no `<parentFlexiPage>`.
+
+### Likely Cause
+`Replace` mode on a region is only valid when the page overrides a parent. A standalone page has no parent to replace against, so Salesforce rejects the mode tag.
+
+### Fix
+Remove all `<mode>` elements from `<flexiPageRegions>` when there is no `<parentFlexiPage>`. A standalone record page region requires no mode declaration.
+
+### Validation
+In run 26503751040, `sf project deploy start --source-dir force-app/main/default/flexipages/Account_Record_Page.flexipage-meta.xml` succeeded after removing all `<mode>` tags from a standalone FlexiPage with no `<parentFlexiPage>`.
+
+### Source
+GitHub Actions run 26503751040; issue #17.
+
+### Trust
+AI-observed, not human-reviewed
+
+### Confirmed
+2026-05-27
+
+## Org Normalization
+
+### LWC component name namespace prefix stripped by no-namespace org
+
+### Error
+(Not a deploy error — a normalization difference.) After deploying a FlexiPage that references a custom LWC as `c:componentName`, the org-retrieved XML shows `componentName` (no `c:` prefix).
+
+### Likely Cause
+When a scratch org has no namespace (`"namespace": ""` in `sfdx-project.json`), the Metadata API normalizes custom LWC component names to unprefixed form.
+
+### Fix
+After every successful FlexiPage deploy, retrieve the FlexiPage back from the org and keep the returned XML. Do not hand-author the `c:` prefix back in — the retrieved form is authoritative.
+
+### Validation
+In run 26503751040, deployed with `<componentName>c:accountSupportNote</componentName>`, then retrieved; org returned `<componentName>accountSupportNote</componentName>`. No deploy error in either direction.
+
+### Source
+GitHub Actions run 26503751040; live-org retrieve; issue #17.
+
+### Trust
+AI-observed, not human-reviewed
+
+### Confirmed
+2026-05-27
