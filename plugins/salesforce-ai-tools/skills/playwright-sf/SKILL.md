@@ -64,6 +64,11 @@ Lightning composes shadow roots into the a11y tree, so this works across LWC, Au
 
 Lightning pages spinner. Before every assertion, wait for a stable anchor you expect: the record name, a section header, the Save button, or the exact response text. In scripts, use `expect(locator).toBeVisible()` or `page.waitForFunction(...)`; in MCP fallback, use `browser_wait_for({ text: "<known anchor>" })`. If the anchor never shows up after two reasonable waits, report `UI-INCONCLUSIVE` rather than `UI-FAIL` — flaky load ≠ broken feature.
 
+If backend state, a success toast, or earlier screenshots prove the requested
+behavior but a dynamic Lightning panel does not refresh into the final frame,
+do not keep re-recording. Make one focused retry with a changed wait/refresh
+strategy, then report `UI-INCONCLUSIVE` and preserve the best artifacts.
+
 ## Screenshot Evidence
 
 Every assertion writes a screenshot. Use Playwright CLI/scripted screenshots by default; use MCP screenshots only for fallback exploration. Write to a path **inside the branch** so the screenshots ride along with the commit and GitHub renders them inline in the PR body by raw URL:
@@ -128,6 +133,11 @@ For the `import`, install playwright temporarily so the module resolves cleanly:
     npm install --no-save playwright
 
 **Step 2 — write the script.** Pass volatile values through environment variables. Do not embed or rewrite frontdoor URLs with `sed`; Salesforce URLs contain `&` and other characters that corrupt shell substitutions.
+
+Do not delete the last good evidence before a replacement succeeds. For a
+re-record, write into a fresh directory such as `.verification/pr-<N>/retry-1`
+or copy the previous screenshots/video aside first. A failed re-record must not
+erase the only useful artifacts from the run.
 
 ```js
 import { chromium } from 'playwright';
@@ -226,6 +236,11 @@ printed by the script. Do not scan the directory or pick the first `.webm`.
 
 Open at least the first, middle, and last frame with an image viewer or image-capable tool. If any frame shows login, Access Denied, Setup, a blank page, or the wrong record, the video is invalid. Re-record it. Do not link or commit it, and do not claim video verification in the PR.
 
+If frames show the right page and interaction but miss a late-refreshing
+Lightning subpanel, run at most one focused re-record. After that, keep the
+best evidence, report `UI-INCONCLUSIVE`, and let `sf-ticket-to-pr` ship with the
+available screenshots, SOQL, and test evidence.
+
 After frame inspection passes:
 
     git add -f .verification/pr-<N>/session.mp4
@@ -251,3 +266,5 @@ After frame inspection passes:
 - Claiming video verification without inspecting frames from the committed `session.mp4`.
 - Treating backend SOQL assertions as proof that the recorded UI is correct.
 - Looping through MCP snapshots after a CLI/scripted approach has enough selectors.
+- Deleting previous screenshots/video before a replacement recording has passed frame inspection.
+- Re-recording more than once for a flaky Lightning refresh when the implementation is already deployed and backend-verified.

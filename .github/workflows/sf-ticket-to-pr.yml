@@ -200,84 +200,14 @@ jobs:
         id: claude
         with:
           prompt: |
-            Follow the `salesforce-ai-tools:sf-ticket-to-pr` plugin skill for instructions.
+            Follow the `salesforce-ai-tools:sf-ticket-to-pr` plugin skill — Step 1 only.
 
-            You were summoned on ${{ steps.context.outputs.kind }} #${{ steps.context.outputs.number }} of ${{ github.repository }} by either an @butler mention or a human reply to a pending Butler plan.
+            Context: ${{ steps.context.outputs.kind }} #${{ steps.context.outputs.number }} in ${{ github.repository }}.
 
-            **Before anything else, run this command and read the full output:**
-
-                gh ${{ steps.context.outputs.kind == 'pr' && 'pr' || 'issue' }} view ${{ steps.context.outputs.number }} --repo ${{ github.repository }} --comments
-
-            If an @butler mention triggered this run, it may be a short comment
-            like "@butler" or "@butler retry" — that is NOT necessarily the task.
-            The actual task is usually in the **issue body** (the first block of
-            text in the output above, before any comments). If this run was
-            triggered by a human reply to a pending Butler plan, interpret that
-            latest human reply as approval, correction, rejection, or ambiguity
-            relative to the pending plan. Do not confuse a triggering comment
-            with the issue description.
-
-            Execute ONLY the approval-aware triage decision. Do not code, deploy,
-            provision Salesforce, or verify UI in this job.
-
-            Read the full thread and find the latest Butler plan comment, if
-            any. Butler plan comments contain this hidden marker:
-
-                <!-- butler:plan status=pending -->
-
-            Then apply this policy:
-
-            1. If there is no pending Butler plan for the current ask, post a
-               concrete implementation plan and stop. The plan must name the
-               likely files/metadata to touch, tests to run, and UI evidence if
-               relevant. End the comment with:
-
-                   <!-- butler:plan status=pending -->
-
-               Do NOT include an execute marker on the same run that creates or
-               materially revises a plan.
-
-            2. If there is a pending Butler plan and the latest human reply after
-               that plan clearly approves it, post a brief acknowledgement and
-               end the comment with:
-
-                   <!-- butler:execute -->
-
-               Do not restate the whole plan unless needed.
-
-            3. If the latest human reply corrects or changes the approach, post
-               a revised concrete plan and stop. End it with:
-
-                   <!-- butler:plan status=pending -->
-
-            4. If the latest human reply is ambiguous, asks a question, or does
-               not clearly approve the current plan, answer or ask one concise
-               clarifying question and stop. If the existing plan should remain
-               pending, include:
-
-                   <!-- butler:plan status=pending -->
-
-            5. If the request should be split or refused, post that decision and
-               stop. Do not include an execute marker.
-
-            **You MUST post your decision as a real GitHub comment by running
-            the shell command below.** Emitting the comment text in your
-            response does NOT post it; nothing is visible to humans or to the
-            execute job unless you actually call `gh`:
-
-                cat > /tmp/butler-reply.md <<'EOF'
-                <your comment body here>
-                EOF
-                gh ${{ steps.context.outputs.kind == 'pr' && 'pr' || 'issue' }} comment ${{ steps.context.outputs.number }} --repo ${{ github.repository }} --body-file /tmp/butler-reply.md
-
-            STOP after posting the comment — there is no Salesforce CLI or
-            scratch org available here; the execute job runs next only if you
-            set the `<!-- butler:execute -->` marker after clear human approval.
-
-            Tone: strong opinions, no "Great question!" or "I'd be happy to
-            help!", brevity mandatory, no emojis, call things out if the
-            request is unclear or risky.
-          claude_args: "--max-turns 30 --model claude-opus-4-7 --permission-mode bypassPermissions"
+            This is the triage job. No Salesforce CLI or scratch org is available.
+            Do not code, deploy, or verify. Read the thread, decide, post one
+            GitHub comment, stop.
+          claude_args: "--max-turns 30 --model claude-sonnet-4-6 --permission-mode bypassPermissions"
           show_full_output: "true"
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -371,7 +301,6 @@ jobs:
       group: scratch-org-${{ needs.triage.outputs.scratch_key }}
       cancel-in-progress: false
     env:
-      DEV_HUB_URL: set
       KIND: ${{ needs.triage.outputs.kind }}
       NUMBER: ${{ needs.triage.outputs.number }}
       PR_BRANCH: ${{ needs.triage.outputs.pr_branch }}
@@ -439,29 +368,23 @@ jobs:
 
       - name: Do the work
         uses: anthropics/claude-code-action@v1
-        timeout-minutes: 15
+        timeout-minutes: 45
         id: claude
         with:
           prompt: |
-            Follow the `salesforce-ai-tools:sf-ticket-to-pr` plugin skill for instructions.
+            Follow the `salesforce-ai-tools:sf-ticket-to-pr` plugin skill — Steps 2-4.
 
-            You were summoned on ${{ env.KIND }} #${{ env.NUMBER }}. Triage has already determined that a human clearly approved the current Butler plan. Skip triage and go straight to coding, verifying, and shipping.
+            Context: ${{ env.KIND }} #${{ env.NUMBER }} in ${{ github.repository }}.
+            Scratch org alias: ${{ env.SCRATCH_ORG_ALIAS }}
 
-            Your earlier triage comment (the plan you committed to):
+            Triage is done. A human approved this plan:
 
             --- Plan ---
             ${{ needs.triage.outputs.plan }}
             --- End plan ---
 
-            Read the full thread for context (`gh ${{ env.KIND == 'pr' && 'pr' || 'issue' }} view ${{ env.NUMBER }} --repo ${{ github.repository }} --comments`).
-
-            For Salesforce metadata, do not use Setup, App Builder, Playwright,
-            or MCP for implementation/configuration. Use source, Salesforce CLI,
-            API-backed metadata, live-org retrieve, or recent public GitHub source
-            shape. Playwright is only for final user-facing verification.
-
-            Tone for human-facing text: strong opinions, no "Great question!" or "I'd be happy to help!", brevity mandatory, no emojis, call out anything unclear or risky.
-          claude_args: "--max-turns 90 --model claude-sonnet-4-6 --permission-mode bypassPermissions"
+            Read the full thread for context, then code, verify, and ship.
+          claude_args: "--max-turns 90 --model claude-opus-4-7 --permission-mode bypassPermissions"
           show_full_output: "true"
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -476,7 +399,7 @@ jobs:
         run: .sf-ai-tools/.github/scripts/report-ai-cost.sh || echo "::warning::cost report failed"
 
       - name: Prepare metadata learning context
-        if: always()
+        if: failure() || cancelled()
         env:
           EXECUTION_FILE: ${{ steps.claude.outputs.execution_file }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -498,7 +421,7 @@ jobs:
           } > /tmp/butler-metadata-learning-context.txt
 
       - name: Extract metadata learnings
-        if: always()
+        if: failure() || cancelled()
         uses: anthropics/claude-code-action@v1
         timeout-minutes: 5
         with:
@@ -532,7 +455,7 @@ jobs:
 
             Then post one concise GitHub comment on ${{ env.KIND }} #${{ env.NUMBER }}
             saying what learning was recorded. If no learning was found, do not comment.
-          claude_args: "--max-turns 40 --model claude-opus-4-7 --permission-mode bypassPermissions"
+          claude_args: "--max-turns 15 --model claude-sonnet-4-6 --permission-mode bypassPermissions"
           show_full_output: "true"
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -549,6 +472,7 @@ jobs:
             playwright-report/**
             test-results/**
           if-no-files-found: ignore
+          include-hidden-files: true
 
       - name: Notify on execute failure
         if: failure()

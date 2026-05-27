@@ -74,7 +74,7 @@ What the pipeline gives you:
 - The same scratch org is reused across the issue and follow-up PR comments.
 - The PR contains the implementation summary, scratch-org login URL, deploy/test results, PMD findings, UI evidence when relevant, and cost footer.
 - The same `salesforce-ai-tools` plugin is installed locally and in CI.
-- Each phase runs a fit-for-purpose model: **Opus** for triage/planning and learning extraction (short, reasoning-heavy), **Sonnet** for the long execute step.
+- Each phase runs a fit-for-purpose model: **Sonnet** for triage/planning, **Opus** for the long execute step, and **Sonnet** for failure-only metadata learning extraction.
 
 ### Pipeline Flow
 
