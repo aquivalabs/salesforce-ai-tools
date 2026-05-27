@@ -27,15 +27,21 @@ if [ -s "$AUTH_CACHE_FILE" ]; then
 fi
 
 if [ -z "$DEV_HUB_URL" ]; then
-  echo "Setting default dev hub"
-  execute sf config set target-dev-hub=$DEV_HUB_ALIAS
+  if [ -n "${DEV_HUB_ALIAS:-}" ]; then
+    if sf org display --target-org "$DEV_HUB_ALIAS" >/dev/null 2>&1; then
+      echo "Setting default dev hub to $DEV_HUB_ALIAS"
+      execute sf config set target-dev-hub="$DEV_HUB_ALIAS"
+    else
+      echo "Dev hub alias $DEV_HUB_ALIAS is not authenticated; using current default dev hub"
+    fi
+  fi
 
   echo "Deleting old scratch org"
-  sf org delete scratch --no-prompt --target-org $SCRATCH_ORG_ALIAS
+  sf org delete scratch --no-prompt --target-org "$SCRATCH_ORG_ALIAS"
 fi
 
 echo "Creating scratch org"
-execute sf org create scratch --alias $SCRATCH_ORG_ALIAS --set-default --definition-file ./config/project-scratch-def.json --duration-days 30
+execute sf org create scratch --alias "$SCRATCH_ORG_ALIAS" --set-default --definition-file ./config/project-scratch-def.json --duration-days 30
 
 echo "Making org user English"
 sf data update record --sobject User --where "Name='User User'" --values "Languagelocalekey=en_US"
