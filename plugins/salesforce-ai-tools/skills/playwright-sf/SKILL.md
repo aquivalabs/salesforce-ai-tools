@@ -36,6 +36,19 @@ Don't script the login form. Ask the CLI for a one-time auto-login URL and navig
 
 Navigate to that URL in MCP fallback discovery, or pass it as `SCRATCH_URL` for scripted runs. You land already logged in. The URL is single-use; if you need a second session, request another. Do not write it into a JS file.
 
+**Land directly on the target page — don't navigate after login.** A bare
+frontdoor URL drops you on the org home, and a second `page.goto()` to the
+record can race the session cookie and bounce you to login. Pass the
+destination with `--path` so the frontdoor redirects there *after* auth, in one
+hop. A bare record id is enough — Salesforce resolves `/<id>` to that record's
+correct page for any object, so you never need an object-specific URL:
+
+    SCRATCH_URL=$(sf org open --url-only --path "/$RECORD_ID" --target-org "$SCRATCH_ORG_ALIAS" --json | jq -r .result.url)
+
+Get the id first with a quick SOQL (`sf data query`) or create the record you
+need. One `page.goto(SCRATCH_URL)` then lands logged-in on the record itself —
+no follow-up navigation, no post-login bounce to debug.
+
 ## Find Things By Role, Not CSS
 
 In scripts, prefer Playwright locators such as `getByRole`, `getByLabel`, and `getByText` with stable business text. Lightning selectors against Shadow DOM internals are brittle.
@@ -199,7 +212,9 @@ TARGET_TEXT="<record name or page anchor that proves the right page>" \
 node .verification/pr-<N>/record-video.mjs
 ```
 
-**Step 3 — convert the current video only.** Use the `webm:` path printed by the script. Do not scan the directory or pick the first `.webm`.
+**Step 3 — convert the current video only.** `ffmpeg` is already installed by the
+workflow — don't check for it or `apt-get install` it. Use the `webm:` path
+printed by the script. Do not scan the directory or pick the first `.webm`.
 
     ffmpeg -i "<webm path printed by script>" -c:v libx264 -preset fast -crf 22 -movflags +faststart \
       .verification/pr-<N>/session.mp4 -y

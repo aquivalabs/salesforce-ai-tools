@@ -416,9 +416,12 @@ jobs:
       # Chromium for Playwright-driven UI verification. The agent only fires
       # it up for user-visible changes (see playwright-sf skill); install is
       # unconditional so the binary is always available when the model decides
-      # to use it.
-      - name: Install Playwright Chromium
-        run: npx --yes playwright install --with-deps chromium
+      # to use it. ffmpeg ships too so video verification can convert the
+      # recorded WebM to MP4 without an in-run apt install.
+      - name: Install Playwright Chromium and ffmpeg
+        run: |
+          npx --yes playwright install --with-deps chromium
+          sudo apt-get install -y ffmpeg
 
       - name: Authenticate DevHub
         run: sf org login sfdx-url --set-default-dev-hub --sfdx-url-stdin <<< "${{ secrets.SFDX_AUTH_URL }}"
