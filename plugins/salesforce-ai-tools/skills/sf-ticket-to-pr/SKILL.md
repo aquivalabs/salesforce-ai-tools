@@ -160,10 +160,12 @@ output, test results). The reviewer's only verification is glancing at the
 evidence and optionally clicking the scratch-org URL.
 
 **If your change creates a custom Lightning record page (FlexiPage), you
-also activate it** — as Org Default for the relevant `sObjectType`, or
-assigned to the appropriate app/profile. A non-activated page is invisible
-to users, so shipping one is the same as shipping nothing. Verification
-without activation is impossible because the new page is never rendered.
+also activate it through metadata** — object `actionOverrides` for org-default
+record pages, or app `actionOverrides` / `profileActionOverrides` for
+app/profile-specific assignments. Do not use App Builder, Setup, or Tooling API
+activation guesses. A non-activated page is invisible to users, so shipping one
+is the same as shipping nothing. Verification without activation is impossible
+because the new page is never rendered.
 
 ### Human approved the current plan
 

@@ -13,13 +13,15 @@ or other Lightning record page.
    - A FlexiPage deploy cannot validate a custom component that is not in the
      org yet.
 
-2. Get a real FlexiPage XML shape before editing.
-   - First try to retrieve the target page from the org:
+2. Get a real FlexiPage XML shape before editing. Never guess structure from memory.
+   - Default to a recent public GitHub RecordPage of the same object/template
+     family and copy its region/component shape. A fresh scratch org has no
+     retrievable standard RecordPage — `FlexiPage` retrieve there returns only
+     Utility Bars or "cannot be found", so org-retrieve is not the starting move.
+   - Only retrieve from the org when the target page already exists as a
+     customized page:
      `timeout 180 sf project retrieve start --metadata "FlexiPage:<Page_Api_Name>" --target-org "$SCRATCH_ORG_ALIAS"`
-   - If the exact page does not exist, use a recent public GitHub RecordPage or
-     another retrieved RecordPage as the structural example.
-   - Do not use unrelated FlexiPage types such as Utility Bars.
-   - Do not guess structure from memory.
+   - Use only RecordPage examples. Never use Utility Bar FlexiPages.
    - Stop once you have a RecordPage with enough region/component shape to place
      the LWC. Public examples are structure only; the org deploy is truth.
 
@@ -50,16 +52,39 @@ or other Lightning record page.
      the org-normalized XML.
    - If the second focused deploy fails, stop and post the exact blocker.
 
-6. Activate the page.
-   - If the story creates a new custom record page, activate it as org default or
-     the requested app/profile assignment.
-   - Activation is metadata work. Use retrieved metadata or recent source examples
-     for the assignment shape.
-   - Do not open App Builder or Setup to activate the page.
-   - Do not query invented activation metadata types.
-   - If the assignment metadata cannot be found or validated quickly, stop with
-     that blocker instead of using browser clicks.
-   - A deployed but inactive record page is not shipped.
+6. Activate the page with object metadata. The FlexiPage XML defines the page;
+   an `actionOverrides` entry on the object activates it as the org-default record
+   page. No App Builder, no Setup, no Tooling API.
+   - Add the override to `force-app/main/default/objects/<Object>/<Object>.object-meta.xml`
+     (set `<content>` to the FlexiPage API name, `<Object>` to the target object):
+
+     ```xml
+     <CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+         <actionOverrides>
+             <actionName>View</actionName>
+             <content>Account_Record_Page</content>
+             <formFactor>Large</formFactor>
+             <skipRecordTypeSelect>false</skipRecordTypeSelect>
+             <type>Flexipage</type>
+         </actionOverrides>
+     </CustomObject>
+     ```
+
+   - Deploy the FlexiPage, then the object metadata:
+
+     ```bash
+     sf project deploy start --source-dir force-app/main/default/flexipages/<Page>.flexipage-meta.xml
+     sf project deploy start --source-dir force-app/main/default/objects/<Object>/<Object>.object-meta.xml
+     ```
+
+   - If the story requires app-level or app/profile-specific assignment instead
+     of org default, activate through `CustomApplication` metadata in
+     `force-app/main/default/applications/<App>.app-meta.xml` using
+     `actionOverrides` or `profileActionOverrides`. Do not use this path unless
+     the story asks for app/profile scoping.
+
+   - A deployed but inactive record page is not shipped. Activation is required so
+     the Step 7 Playwright verification can open the record and prove the page works.
 
 7. Verify the visible user flow.
    - Open a real record in Lightning.
