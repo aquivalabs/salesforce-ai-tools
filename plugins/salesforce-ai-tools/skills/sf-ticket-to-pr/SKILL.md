@@ -252,16 +252,14 @@ Apex / coding rules live in the consuming repo's `CLAUDE.md` and any
 Read each file you will change in full before editing. Then write the change
 and update or add the test class.
 
-For brittle Salesforce metadata, prefer a retrieved working shape over invented
-XML. This applies especially to Quick Actions, Layouts, FlexiPages, LWC record
-actions, Flows, Permission Sets, and Agentforce metadata. If a similar artifact
-exists in the scratch org, retrieve it and adapt that shape before authoring from
-memory.
+For unknown Salesforce XML shape, do not invent it and do not use Setup UI.
+Find a recent real source shape from public GitHub or a live-org retrieve, adapt
+only the needed values, keep the shipped metadata minimal, and validate by
+deploy. If two focused deploy attempts fail on the same metadata file, stop and
+post the exact blocker instead of switching to API archaeology or browser setup
+work.
 
-For FlexiPage RecordPages, follow the `flexipages.md` recipe: search or retrieve
-a real RecordPage source shape, adapt only the needed region/component, deploy
-the smallest FlexiPage file, retrieve the org-normalized XML, activate the page
-when it is newly created, and verify the activated page in the UI.
+For FlexiPage RecordPages, follow the `flexipages.md` recipe.
 
 ### Salesforce CLI command discipline
 
@@ -306,19 +304,10 @@ second guess.
 5. Apply one targeted fix.
 6. Redeploy the smallest relevant source path.
 
-If local knowledge does not resolve the failure, first retrieve a similar
-working artifact from the scratch org when one can exist. If retrieval is not
-possible or still leaves the failure unresolved, research in this order:
-
-1. Official Salesforce metadata or source-format docs.
-2. Public GitHub examples using exact file suffixes, paths, XML elements, or
-   error text.
-3. Salesforce StackExchange only for interpreting error messages.
-
-Truth hierarchy: validated live-org retrieval beats official docs; official docs
-beat public examples; public examples beat forum interpretation. Public GitHub
-examples are for shape discovery only. Validate by deploy or retrieve before
-recording a rule.
+If local knowledge does not resolve the failure, use a retrieved org artifact or
+a recent public GitHub source file for structure. Official docs help interpret
+fields, but real source shape plus current-org deploy is the validation. Do not
+open Salesforce Setup or App Builder to create, inspect, or activate metadata.
 
 After a fix, failure, cancellation, or repeated metadata loop that required
 research or retrieval, update the matching knowledge file with the exact symptom,
@@ -346,7 +335,9 @@ you touched.
 If your plan included a Playwright scenario (bug repro or UI verification),
 invoke the `playwright-sf` skill to run it now against the scratch org.
 Use CLI/scripted Playwright first; use MCP only as a fallback discovery tool
-when selectors cannot be determined. Classic `npx playwright test` is for
+when selectors cannot be determined on the final user-facing page. Never use
+Playwright or MCP to configure Salesforce Setup/App Builder. Classic
+`npx playwright test` is for
 committed regression specs, not the default one-off PR evidence path. Attach
 the resulting screenshots to the PR body in Step 4. A `UI-FAIL` result means
 the change is wrong — iterate. A `UI-INCONCLUSIVE` result means the assertion

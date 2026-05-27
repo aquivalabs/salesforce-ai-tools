@@ -16,28 +16,18 @@ or other Lightning record page.
 2. Get a real FlexiPage XML shape before editing.
    - First try to retrieve the target page from the org:
      `timeout 180 sf project retrieve start --metadata "FlexiPage:<Page_Api_Name>" --target-org "$SCRATCH_ORG_ALIAS"`
-   - If the exact page does not exist, retrieve another RecordPage for the same
-     template/object family or search public GitHub source by exact metadata
-     tokens. Do not use unrelated FlexiPage types such as Utility Bars.
+   - If the exact page does not exist, use a recent public GitHub RecordPage or
+     another retrieved RecordPage as the structural example.
+   - Do not use unrelated FlexiPage types such as Utility Bars.
    - Do not guess structure from memory.
-
-```bash
-gh search code 'recordHomeTemplateDesktop' --limit 10
-gh search code 'flexipage:recordHomeTemplateDesktop' --limit 10
-gh search code '<type>RecordPage</type>' --limit 10
-gh search code '<sobjectType>Account</sobjectType>' --limit 10
-gh search code 'componentInstance itemInstances flexipage-meta.xml' --limit 10
-```
-
-   - Stop searching when you have a RecordPage with the same template family and
-     enough region/component shape to place the LWC. Public examples are
-     accelerators, not truth.
+   - Stop once you have a RecordPage with enough region/component shape to place
+     the LWC. Public examples are structure only; the org deploy is truth.
 
 3. Author the smallest valid FlexiPage.
    - Set `<type>RecordPage</type>`.
    - Set the correct `<sobjectType>...</sobjectType>`.
-   - Use the template from a retrieved page, App Builder, or a public example
-     that deploys in the current org.
+   - Use the template from a retrieved page or a public example that deploys in
+     the current org.
    - For a standard desktop record page with header and right sidebar, the known
      template is `flexipage:recordHomeTemplateDesktop`.
    - Add only the region/component XML needed for the story. Do not copy a whole
@@ -54,17 +44,21 @@ gh search code 'componentInstance itemInstances flexipage-meta.xml' --limit 10
 5. If FlexiPage deploy fails, fix the exact XML shape error once.
    - Do not switch metadata types.
    - Do not invent a new template name.
-   - Search the exact error text and XML element on GitHub before editing again.
    - Make one targeted XML change, then redeploy the same FlexiPage file.
    - Trust the current org deploy error over copied examples.
    - After a successful deploy, retrieve the FlexiPage back from the org and keep
      the org-normalized XML.
+   - If the second focused deploy fails, stop and post the exact blocker.
 
 6. Activate the page.
    - If the story creates a new custom record page, activate it as org default or
      the requested app/profile assignment.
-   - App Builder activation is acceptable when assignment metadata is unclear.
+   - Activation is metadata work. Use retrieved metadata or recent source examples
+     for the assignment shape.
+   - Do not open App Builder or Setup to activate the page.
    - Do not query invented activation metadata types.
+   - If the assignment metadata cannot be found or validated quickly, stop with
+     that blocker instead of using browser clicks.
    - A deployed but inactive record page is not shipped.
 
 7. Verify the visible user flow.
@@ -82,6 +76,9 @@ gh search code 'componentInstance itemInstances flexipage-meta.xml' --limit 10
   file, or deploy-validated in the current org.
 - `FlexiPageTemplate` is not a listable Metadata API type and is not queryable as
   a Tooling API sObject.
+- Never use UtilityBar FlexiPages as RecordPage examples.
+- Never use Salesforce Setup or App Builder for FlexiPage creation, inspection,
+  or activation in this pipeline.
 - Do not rely on a deploy alone. FlexiPage work is done only after activation and
   UI verification.
 

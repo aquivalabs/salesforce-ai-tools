@@ -7,11 +7,17 @@ description: Verify Salesforce Lightning UI flows with Playwright CLI/scripts fi
 
 Default to Playwright CLI or small scripted Playwright runs for Salesforce UI verification. CLI/scripted runs keep browser state, traces, snapshots, and videos outside the model context, so they are cheaper and repeatable in GitHub Actions. Use Playwright MCP only as a fallback discovery tool when you cannot determine selectors from the scripted run output.
 
+Playwright verifies user-facing Salesforce pages only. Do not use Playwright,
+MCP, Setup, or App Builder to configure Salesforce metadata, activate pages, or
+perform admin setup. If configuration is required, do it through source,
+Salesforce CLI, or API-backed metadata. If that path is unclear, report the
+blocker instead of clicking through Setup.
+
 Classic `npx playwright test` is for committed deterministic regression specs. Do not use it as the default one-off evidence path for a ticket unless you are adding or running a real regression spec.
 
 ## Tools you have
 
-Use Bash first for Playwright CLI or Node.js scripts. When `@playwright/cli` is available, prefer it for one-off inspection because page state and snapshots stay on disk instead of streaming into the model context. The MCP server is available only for fallback discovery and exposes:
+Use Bash first for Playwright CLI or Node.js scripts. When `@playwright/cli` is available, prefer it for one-off inspection because page state and snapshots stay on disk instead of streaming into the model context. The MCP server is available only for fallback selector discovery on final user-facing pages and exposes:
 
 - `browser_navigate(url)` — open a URL
 - `browser_snapshot()` — return the accessibility tree of the current page, with `ref` handles for every element
@@ -89,7 +95,11 @@ Two shapes:
 
 The MCP server cannot record video. When the full interaction sequence — user input → system processes → response appears — is the thing being proven, write a short Node.js script and run it via Bash. Playwright's `recordVideo` context option captures the session and flushes the file to disk when the context is closed.
 
-MCP is only for discovering the UI shape before writing the script. The script is the verification artifact. It must fail if Salesforce shows login, Access Denied, Setup instead of the target page, a blank page, the wrong record, or if the expected UI text never appears. Backend SOQL plus a video file is not enough; the recorded pixels must prove the UI flow.
+MCP is only for discovering the UI shape before writing the script on the final
+user-facing page. The script is the verification artifact. It must fail if
+Salesforce shows login, Access Denied, Setup instead of the target page, a blank
+page, the wrong record, or if the expected UI text never appears. Backend SOQL
+plus a video file is not enough; the recorded pixels must prove the UI flow.
 
 **Step 1 — locate the Chromium binary and the playwright module.** The workflow already installed Chromium via `npx playwright install --with-deps chromium`. Find it before writing the script:
 
