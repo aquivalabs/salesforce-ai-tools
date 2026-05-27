@@ -1,0 +1,24 @@
+<template>
+    <lightning-card title="Quick Support Note" icon-name="standard:task">
+        <div class="slds-var-p-horizontal_medium slds-var-p-bottom_medium">
+            <lightning-textarea
+                name="supportNote"
+                label="Support note"
+                variant="label-hidden"
+                placeholder="Add a support note…"
+                value={noteBody}
+                onchange={handleNoteChange}
+                disabled={isSaving}
+            ></lightning-textarea>
+            <div class="slds-var-m-top_small slds-text-align_right">
+                <lightning-button
+                    variant="brand"
+                    label="Save Note"
+                    title="Save this support note as a completed activity"
+                    onclick={handleSave}
+                    disabled={isSaving}
+                ></lightning-button>
+            </div>
+        </div>
+    </lightning-card>
+</template>
