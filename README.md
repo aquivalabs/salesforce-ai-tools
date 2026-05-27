@@ -1,4 +1,4 @@
-# salesforce-ai-tools [`v2026.5.5`](https://github.com/aquivalabs/salesforce-ai-tools/releases/tag/v2026.5.5)
+# salesforce-ai-tools [`v2026.5.6`](https://github.com/aquivalabs/salesforce-ai-tools/releases/tag/v2026.5.6)
 
 Reusable GitHub Actions workflows and a versioned Claude Code plugin for AI-assisted Salesforce development. Drop these into any Salesforce repo to get an AI agent that triages issues, opens pull requests, verifies UI changes, and more — all triggered by a simple `@butler` mention.
 
