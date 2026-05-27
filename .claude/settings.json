@@ -1,0 +1,7 @@
+{
+  "enabledPlugins": {
+    "salesforce-ai-tools@aquiva-labs": true
+  },
+  "theme": "light",
+  "agentPushNotifEnabled": true
+}
