@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-node "${CLAUDE_PLUGIN_ROOT}/skills/agentforce/run.mjs" "$@"
+# CLAUDE_PLUGIN_ROOT is set by the plugin harness. Fall back to the script's
+# own location so the runner also works when invoked directly from a shell.
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-"$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"}"
+
+node "${PLUGIN_ROOT}/skills/agentforce/run.mjs" "$@"
