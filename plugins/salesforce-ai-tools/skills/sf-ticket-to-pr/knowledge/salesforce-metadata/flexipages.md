@@ -147,10 +147,10 @@ FlexiPage deploy fails when `<flexiPageRegions>` elements include `<mode>Replace
 Remove all `<mode>` elements from `<flexiPageRegions>` when there is no `<parentFlexiPage>`. A standalone record page region requires no mode declaration.
 
 ### Validation
-In run 26503751040, `sf project deploy start --source-dir force-app/main/default/flexipages/Account_Record_Page.flexipage-meta.xml` succeeded after removing all `<mode>` tags from a standalone FlexiPage with no `<parentFlexiPage>`.
+In run 26503751040, `sf project deploy start --source-dir force-app/main/default/flexipages/Account_Record_Page.flexipage-meta.xml` succeeded after removing all `<mode>` tags from a standalone FlexiPage with no `<parentFlexiPage>`. Reconfirmed in run 26512323943 (issue #20, fresh scratch org `pr-20`): the same mode-free standalone `Account_Record_Page` FlexiPage — reused for the `quickSupportNote` LWC — deployed clean on the first try with no `<mode>` tags and no `<parentFlexiPage>`.
 
 ### Source
-GitHub Actions run 26503751040; issue #17.
+GitHub Actions runs 26503751040 (issue #17) and 26512323943 (issue #20).
 
 ### Trust
 AI-observed, not human-reviewed
@@ -172,10 +172,10 @@ When a scratch org has no namespace (`"namespace": ""` in `sfdx-project.json`), 
 After every successful FlexiPage deploy, retrieve the FlexiPage back from the org and keep the returned XML. Do not hand-author the `c:` prefix back in — the retrieved form is authoritative.
 
 ### Validation
-In run 26503751040, deployed with `<componentName>c:accountSupportNote</componentName>`, then retrieved; org returned `<componentName>accountSupportNote</componentName>`. No deploy error in either direction.
+In run 26503751040, deployed with `<componentName>c:accountSupportNote</componentName>`, then retrieved; org returned `<componentName>accountSupportNote</componentName>`. No deploy error in either direction. Reconfirmed in run 26512323943 (issue #20, fresh scratch org `pr-20`): deployed the FlexiPage referencing the LWC in the already-normalized unprefixed form `<componentName>quickSupportNote</componentName>`; the org retrieve returned `quickSupportNote` unchanged — the org-normalized form round-trips with no deploy error.
 
 ### Source
-GitHub Actions run 26503751040; live-org retrieve; issue #17.
+GitHub Actions runs 26503751040 (issue #17) and 26512323943 (issue #20); live-org retrieve.
 
 ### Trust
 AI-observed, not human-reviewed
